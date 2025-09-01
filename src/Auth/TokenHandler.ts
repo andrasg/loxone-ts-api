@@ -10,14 +10,14 @@ class TokenHandler {
     username: string;
     connection: WebSocketConnection;
     validUntil: string | undefined;
-    validUntilDate: Date | undefined;
+    validUntilDateUTC: Date | undefined;
     password: string;
     // timer that will attempt to refresh the token before it expires
     private refreshTimer: ReturnType<typeof setTimeout> | undefined;
     // buffer (ms) before actual expiry when we attempt to refresh
-    private refreshBufferMs = 3600 * 1000; // 3600 seconds
+    private refreshBufferMs = 2 * 3600 * 1000; // 2 hours
     // retry/backoff settings when refresh fails
-    private refreshRetryMs = 60 * 1000; // 60 seconds
+    private refreshRetryMs = 5 * 60 * 1000; // 5 minutes
     private refreshMaxRetries = 5;
     private refreshRetries = 0;
     log: AnsiLogger;
@@ -31,11 +31,11 @@ class TokenHandler {
     }
 
     async refreshToken() {
-        if (!this.token || !this.validUntilDate) {
+        if (!this.token || !this.validUntilDateUTC) {
             throw new Error("No token to refresh");
         }
 
-        const msUntilExpiry = this.validUntilDate.getTime() - Date.now();
+        const msUntilExpiry = this.validUntilDateUTC.getTime() - Date.now();
 
         if (msUntilExpiry < 0) {
             this.log.warn("Token cannot be refreshed any more as it expired. Trying to acquire a new one");
@@ -145,9 +145,9 @@ class TokenHandler {
         this.validUntil = tokenResponse.value.validUntil;
         const seconds = parseInt(this.validUntil!);
         const baseMs = Date.UTC(2009, 0, 1, 0, 0, 0);
-        this.validUntilDate = new Date(baseMs + seconds * 1000);
+        this.validUntilDateUTC = new Date(baseMs + seconds * 1000);
 
-        this.log.info(`Token valid until: ${this.validUntilDate.toLocaleString()}`);
+        this.log.info(`Token valid until: ${this.validUntilDateUTC.toLocaleString()}`);
 
         // Schedule automatic refresh
         this.refreshRetries = 0;
@@ -167,10 +167,10 @@ class TokenHandler {
     private scheduleRefresh() {
         this.clearScheduledRefresh();
 
-        if (!this.token || !this.validUntilDate) 
+        if (!this.token || !this.validUntilDateUTC) 
             throw new Error("No token to schedule refresh for");
 
-        const msUntilExpiry = this.validUntilDate.getTime() - Date.now();
+        const msUntilExpiry = this.validUntilDateUTC.getTime() - Date.now();
         const msUntilRefresh = msUntilExpiry - this.refreshBufferMs;
 
         const scheduleMs = msUntilRefresh > 0 ? msUntilRefresh : 0;
@@ -185,10 +185,15 @@ class TokenHandler {
 
         this.refreshTimer = setTimeout(async () => {
             try {
-                if (msUntilExpiry < 0)
+                this.log.info(`Reached scheduled token refresh time`);
+                if (msUntilExpiry < 0) {
+                    this.log.info('Token already expired, acquiring a new one');
                     await this.acquireToken();
-                else 
+                }
+                else { 
+                    this.log.info('Attempting refresh of existing token');
                     await this.refreshToken();
+                }
             }
             catch (err) {
                 // on failure, retry with backoff until max retries
