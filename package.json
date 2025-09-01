@@ -1,6 +1,6 @@
 {
   "name": "loxone-ts-api",
-  "version": "0.1.0",
+  "version": "1.0.1",
   "description": "TypeScript client for the Loxone API",
   "type": "module",
   "main": "dist/LoxoneClient.js",
@@ -23,7 +23,7 @@
   "author": "Andras Gaal",
   "license": "MIT",
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
     "node-ansi-logger": "^3.1.1",
