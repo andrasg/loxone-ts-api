@@ -11,6 +11,56 @@ Requires a Loxone Miniserver with firmware version 11.2 or higher.
 
 Uses token authentication with the Miniserver. Automatically attempts token refresh before expiry.
 
+## Usage examples
+
+```ts
+import { AnsiLogger, LogLevel, TimestampFormat } from "node-ansi-logger";
+import LoxoneClient from "./LoxoneClient.js";
+
+let log = new AnsiLogger({logName: "workbench", logTimestampFormat: TimestampFormat.TIME_MILLIS});
+
+// instantiate the client
+let client = new LoxoneClient("192.168.1.253:80", "user", "pass");
+
+// sets log level to debug for more verbose logging
+client.setLogLevel(LogLevel.DEBUG);
+
+// subscribe to basic events
+client.on('disconnected', () => {
+    log.warn('Loxone client disconnected');
+});
+client.on('error', (error) => {
+    log.error(`Loxone client error: ${error.message}`, error);
+});
+
+// initiate connection
+await client.connect();
+
+// gets acquired token
+const token = client.auth.tokenHandler.token; 
+
+// disconnects and skips invalidation of token
+await client.disconnect(true); 
+
+// uses supplied token for auth instead of acquiring a new one
+await client.connect(token); 
+
+// sets a switch to on
+await client.control("90f7abe3-8772-476d-b1dd-a5c1c4cf1ed9", "on");
+
+// subscribe to Loxone value updates
+client.on('event_value', (event) => {
+    log.info(`Received value event for ${event.uuid}, value=${event.value}`);
+});
+
+// initiates streaming of events
+await client.enablesUpdates(); 
+
+// disconnects and kills token
+await client.disconnect(); 
+```
+
+
 ## API surface
 
 ### `LoxoneClient`
@@ -138,6 +188,8 @@ async sendFileCommand(filename: string, timeoutOverride = this.COMMAND_TIMEOUT):
 ### `LoxoneClient.control()`
 
 Executes a command on a Loxone control identified by its UUID and waits for the response till timeout (default: 5s, overridable)
+
+See the Loxone [structure file](https://www.loxone.com/wp-content/uploads/datasheets/StructureFile.pdf) for documentation on possible commands.
 
 #### Parameters
 
