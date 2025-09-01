@@ -29,7 +29,7 @@ class Auth {
         this.commandEncryption = new CommandEncryption(this);
     }
 
-    async authenticate(existingToken: string) {
+    async authenticate(existingToken?: string) {
         // 1. get public key
         await this.getPublicKey();
 

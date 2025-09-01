@@ -49,7 +49,7 @@ class LoxoneClient extends EventEmitter {
     /**
      * Initiates connection and triggers authentication
      */
-    async connect(existingToken: string = "") {
+    async connect(existingToken?: string) {
         if (this.state !== LoxoneClientState.disconnected && this.state !== LoxoneClientState.error) {
             this.log.warn('Not in disconnected or error state, ignoring connect call');
             return;
@@ -240,6 +240,7 @@ class LoxoneClient extends EventEmitter {
         if (this.wired) return;
 
         this.connection.on('disconnected', (reason: string) => {
+            this.log.warn(`Disconnected: ${reason}`);
             if (this.state !== LoxoneClientState.error)
                 this.setState(LoxoneClientState.disconnected);
         });
@@ -253,7 +254,7 @@ class LoxoneClient extends EventEmitter {
             // properly await async methods and catch errors to avoid unhandled rejections
             this.connection.on('disconnected', async (reason: string) => {
                 try {
-                    await this.autoReconnect.startAutoReconnect(reason);
+                    await this.autoReconnect.startAutoReconnect();
                 } catch (error: any) {
                     this.log.error(`Failed to start auto reconnect: ${error?.message}`, error);
                 }

@@ -16,7 +16,7 @@ class AutoReconnect {
         this.log = log;
     }
 
-    async startAutoReconnect(existingToken: string) {
+    async startAutoReconnect(existingToken?: string) {
         if (this.autoReconnectingInProgress) return;
         if (!this.autoReconnectEnabled) return;
 
