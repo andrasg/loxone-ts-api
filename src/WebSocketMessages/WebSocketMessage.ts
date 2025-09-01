@@ -1,5 +1,3 @@
-class WebSocketMessage {
+class WebSocketMessage {}
 
-}
-
-export default WebSocketMessage
+export default WebSocketMessage;

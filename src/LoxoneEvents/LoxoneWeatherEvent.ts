@@ -1,6 +1,6 @@
-import UUID from "../WebSocketMessages/UUID.js";
-import { LoxoneEvent } from "./LoxoneEvent.js";
-import LoxoneEventName from "./LoxoneEventName.js";
+import UUID from '../WebSocketMessages/UUID.js';
+import { LoxoneEvent } from './LoxoneEvent.js';
+import LoxoneEventName from './LoxoneEventName.js';
 
 class LoxoneWeatherEvent extends LoxoneEvent {
     static eventName: LoxoneEventName = 'event_table_weather';
@@ -11,7 +11,7 @@ class LoxoneWeatherEvent extends LoxoneEvent {
     constructor(binaryData: Buffer, offset: number) {
         super(binaryData, offset);
 
-        var offset_add = offset;
+        let offset_add = offset;
         this.uuid = new UUID(binaryData, offset_add);
         offset_add += this.uuid.data_length;
         this.lastUpdate = binaryData.readUInt32LE(offset_add);
@@ -21,7 +21,7 @@ class LoxoneWeatherEvent extends LoxoneEvent {
 
         this.entry = [];
 
-        for (var i = 0; i < this.entries; i++) {
+        for (let i = 0; i < this.entries; i++) {
             this.entry.push({
                 'timestamp': binaryData.readInt32LE(offset_add),
                 'weatherType': binaryData.readInt32LE(offset_add + 4),
@@ -33,7 +33,7 @@ class LoxoneWeatherEvent extends LoxoneEvent {
                 'dewPoint': binaryData.readDoubleLE(offset_add + 36),
                 'precipitation': binaryData.readDoubleLE(offset_add + 44),
                 'windSpeed': binaryData.readDoubleLE(offset_add + 52),
-                'barometricPressure': binaryData.readDoubleLE(offset_add + 60)
+                'barometricPressure': binaryData.readDoubleLE(offset_add + 60),
             });
             offset_add += 68;
         }
@@ -48,4 +48,4 @@ class LoxoneWeatherEvent extends LoxoneEvent {
     }
 }
 
-export default LoxoneWeatherEvent
+export default LoxoneWeatherEvent;

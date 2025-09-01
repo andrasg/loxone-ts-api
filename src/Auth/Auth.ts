@@ -1,8 +1,8 @@
-import TokenHandler from "./TokenHandler.js";
-import WebSocketConnection from "../WebSocketConnection.js";
-import { constants, publicEncrypt } from "crypto";
-import CommandEncryption from "./CommandEncryption.js";
-import { AnsiLogger } from "node-ansi-logger";
+import TokenHandler from './TokenHandler.js';
+import WebSocketConnection from '../WebSocketConnection.js';
+import { constants, publicEncrypt } from 'node:crypto';
+import CommandEncryption from './CommandEncryption.js';
+import { AnsiLogger } from 'node-ansi-logger';
 
 class Auth {
     private password: string;
@@ -47,7 +47,7 @@ class Auth {
 
         // 6. exchange session key
         const keyExchangeCommand = `jdev/sys/keyexchange/${this.sessionKey}`;
-        let response = await this.connection.sendUnencryptedTextCommand(keyExchangeCommand);
+        const response = await this.connection.sendUnencryptedTextCommand(keyExchangeCommand);
         if (response.code !== 200) {
             throw new Error(`Failed to exchange session key: ${response.code}`);
         }
@@ -61,23 +61,23 @@ class Auth {
             await this.tokenHandler.acquireToken();
         }
 
-        this.log.info("Authentication complete");
+        this.log.info('Authentication complete');
     }
 
     private async getPublicKey() {
         const response = await fetch('http://' + this.host + '/jdev/sys/getcertificate');
         this.parsePublicKey(await response.text());
-    };
+    }
 
     private parsePublicKey(message: string) {
         const certBlocks = message.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g);
         if (certBlocks === null || certBlocks?.length === 0) {
-            throw new Error("No public key found in getPublicKey response");
+            throw new Error('No public key found in getPublicKey response');
         }
         const leafCert = certBlocks[certBlocks.length - 1];
         this.publicKey = {
             'key': leafCert,
-            'padding': constants.RSA_PKCS1_PADDING
+            'padding': constants.RSA_PKCS1_PADDING,
         };
     }
 
@@ -95,7 +95,7 @@ class Auth {
         const serverKeyHex = getKeyResponse.value.key;
         this.userKey = Buffer.from(serverKeyHex, 'hex');
         this.userSalt = getKeyResponse.value.salt;
-        this.userHashAlg = getKeyResponse.value.hashAlg;        
+        this.userHashAlg = getKeyResponse.value.hashAlg;
     }
 }
 

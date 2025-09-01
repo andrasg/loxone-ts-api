@@ -1,10 +1,9 @@
-
 class UUID {
-    data_length: number
-    private data1: Buffer
-    private data2: Buffer
-    private data3: Buffer
-    private data4: Buffer
+    data_length: number;
+    private data1: Buffer;
+    private data2: Buffer;
+    private data3: Buffer;
+    private data4: Buffer;
 
     constructor(binaryData: Buffer, offset: number) {
         this.data1 = Buffer.from(binaryData.subarray(offset + 0, offset + 4));
@@ -16,23 +15,20 @@ class UUID {
         this._swap_16(this.data2);
         this._swap_16(this.data3);
 
-        this.data_length = 16;        
+        this.data_length = 16;
     }
 
     toString() {
-        return this.data1.toString('hex') + '-'
-                    + this.data2.toString('hex') + '-'
-                    + this.data3.toString('hex') + '-'
-                    + this.data4.toString('hex');
+        return this.data1.toString('hex') + '-' + this.data2.toString('hex') + '-' + this.data3.toString('hex') + '-' + this.data4.toString('hex');
     }
 
-    private _swap_16(data: Buffer){
-        let t = data[0];
+    private _swap_16(data: Buffer) {
+        const t = data[0];
         data[0] = data[1];
         data[1] = t;
     }
 
-    private _swap_32(data: Buffer){
+    private _swap_32(data: Buffer) {
         let t = data[0];
         data[0] = data[3];
         data[3] = t;
@@ -42,4 +38,4 @@ class UUID {
     }
 }
 
-export default UUID
+export default UUID;

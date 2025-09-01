@@ -8,7 +8,7 @@ enum MessageType {
     KEEPALIVE = 6,
     ETABLE_WEATHER = 7,
 
-    HEADER = 99
+    HEADER = 99,
 }
 
 export default MessageType;

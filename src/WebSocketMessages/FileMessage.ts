@@ -1,5 +1,5 @@
-import WebSocket from "ws";
-import WebSocketMessage from "./WebSocketMessage.js";
+import WebSocket from 'ws';
+import WebSocketMessage from './WebSocketMessage.js';
 
 class FileMessage extends WebSocketMessage {
     filename: string;

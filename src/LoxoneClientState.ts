@@ -7,7 +7,7 @@ enum LoxoneClientState {
     authenticated,
     ready,
     reconnecting,
-    error
+    error,
 }
 
 export default LoxoneClientState;

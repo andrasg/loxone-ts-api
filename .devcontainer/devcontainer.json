@@ -7,7 +7,7 @@
 
 	"containerEnv": {
 		"TZ": "Europe/Budapest"
-	}
+	},
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
@@ -19,7 +19,15 @@
 	// "postCreateCommand": "yarn install",
 
 	// Configure tool-specific properties.
-	// "customizations": {},
+	"customizations": {
+		"vscode": {
+			// Add the IDs of extensions you want installed when the container is created.
+			"extensions": [
+				"dbaeumer.vscode-eslint",
+				"rvest.vs-code-prettier-eslint"
+			]
+		}
+	}
 
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "root"

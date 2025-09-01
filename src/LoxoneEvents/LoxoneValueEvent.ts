@@ -1,5 +1,5 @@
-import { LoxoneEvent } from "./LoxoneEvent.js";
-import LoxoneEventName from "./LoxoneEventName.js";
+import { LoxoneEvent } from './LoxoneEvent.js';
+import LoxoneEventName from './LoxoneEventName.js';
 
 class LoxoneValueEvent extends LoxoneEvent {
     value: number;
@@ -7,7 +7,7 @@ class LoxoneValueEvent extends LoxoneEvent {
 
     constructor(binaryData: Buffer, offset: number) {
         super(binaryData, offset);
-        
+
         this.value = binaryData.readDoubleLE(offset + this.uuid.data_length);
     }
 
@@ -20,4 +20,4 @@ class LoxoneValueEvent extends LoxoneEvent {
     }
 }
 
-export default LoxoneValueEvent
+export default LoxoneValueEvent;

@@ -1,5 +1,5 @@
-import { GREEN, GREY, RED } from "node-ansi-logger";
-import WebSocketMessage from "./WebSocketMessage.js";
+import { GREEN, GREY, RED } from 'node-ansi-logger';
+import WebSocketMessage from './WebSocketMessage.js';
 
 class TextMessage extends WebSocketMessage {
     private json;
@@ -7,7 +7,7 @@ class TextMessage extends WebSocketMessage {
     data: string | undefined;
     control: string | undefined;
     value: any;
-    code: number | undefined
+    code: number | undefined;
 
     constructor(utf8Data: string) {
         super();
@@ -16,8 +16,7 @@ class TextMessage extends WebSocketMessage {
             this.type = 'json';
             this.data = this.json;
             if (this.json.LL) {
-                if (this.json.LL.code || this.json.LL.Code)
-                    this.code = parseInt(this.json.LL.Code ?? this.json.LL.code);
+                if (this.json.LL.code || this.json.LL.Code) this.code = parseInt(this.json.LL.Code ?? this.json.LL.code);
 
                 if (this.json.LL.control) {
                     this.type = 'control';
@@ -25,7 +24,7 @@ class TextMessage extends WebSocketMessage {
                     this.value = this.json.LL.value;
                 }
             }
-        } catch (e) {
+        } catch {
             this.type = 'text';
             this.data = utf8Data;
         }
@@ -34,7 +33,7 @@ class TextMessage extends WebSocketMessage {
     toString(): string {
         switch (this.type) {
             case 'text':
-                return `${this.formatCode(this.code)} - ${this.data ?? ""}`;
+                return `${this.formatCode(this.code)} - ${this.data ?? ''}`;
             case 'json':
                 return JSON.stringify(this.data ?? {});
             case 'control':
@@ -44,10 +43,9 @@ class TextMessage extends WebSocketMessage {
 
     private formatCode(code: number | undefined): string {
         let color = GREEN;
-        if (!code || code !== 200)
-            color = RED;
+        if (!code || code !== 200) color = RED;
         return `${color}${code}${GREY}`;
     }
 }
 
-export default TextMessage
+export default TextMessage;

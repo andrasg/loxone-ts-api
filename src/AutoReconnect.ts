@@ -1,9 +1,9 @@
-import { AnsiLogger } from "node-ansi-logger";
-import LoxoneClient from "./LoxoneClient.js";
+import { AnsiLogger } from 'node-ansi-logger';
+import LoxoneClient from './LoxoneClient.js';
 
 class AutoReconnect {
     autoReconnectEnabled: boolean;
-    autoReconnectingInProgress: boolean = false;
+    autoReconnectingInProgress = false;
     reconnectTimeout: NodeJS.Timeout | undefined;
     // resolve function for the pending sleep so we can cancel it
     client: LoxoneClient;
@@ -56,8 +56,12 @@ class AutoReconnect {
 
         // if a sleep is pending, resolve it so the loop can exit promptly
         if (this.reconnectResolve) {
-            this.log.info("Stopping pending reconnect");
-            try { this.reconnectResolve(true); } catch { /* ignore */ }
+            this.log.info('Stopping pending reconnect');
+            try {
+                this.reconnectResolve(true);
+            } catch {
+                /* ignore */
+            }
             this.reconnectResolve = undefined;
         }
     }
@@ -68,4 +72,4 @@ class AutoReconnect {
     }
 }
 
-export default AutoReconnect
+export default AutoReconnect;

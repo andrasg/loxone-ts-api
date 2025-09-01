@@ -1,4 +1,4 @@
-import LoxoneClientEvents from "../LoxoneClientEvents.js";
+import LoxoneClientEvents from '../LoxoneClientEvents.js';
 
 type LoxoneEventName = keyof LoxoneClientEvents;
 

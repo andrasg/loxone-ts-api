@@ -1,6 +1,6 @@
-import { WebSocket } from "ws";
-import MessageType from "./MessageType.js";
-import WsBinHdr from "./WsBinHdr.js";
+import { WebSocket } from 'ws';
+import MessageType from './MessageType.js';
+import WsBinHdr from './WsBinHdr.js';
 
 class ParsedHeader extends WsBinHdr {
     messageType: MessageType;
@@ -8,9 +8,9 @@ class ParsedHeader extends WsBinHdr {
 
     constructor(cBinType = 0x03, cIdentifier = 0, cInfo = 0, cReserved = 0, nLen = 0) {
         super(cBinType, cIdentifier, cInfo, cReserved, nLen);
-    
+
         // parse message type
-        const candidate = (this.cIdentifier as unknown) as MessageType;
+        const candidate = this.cIdentifier as unknown as MessageType;
         if (typeof MessageType[candidate] === 'undefined') {
             throw new Error(`Unknown header identifier: ${this.cIdentifier}`);
         }
@@ -20,13 +20,12 @@ class ParsedHeader extends WsBinHdr {
     }
 
     getNextExpectedMessageType(): MessageType {
-        if (this.isEstimated){
+        if (this.isEstimated) {
             // estimated header is always followed by the real header
             return MessageType.HEADER;
         }
 
-        switch (this.messageType)
-        {
+        switch (this.messageType) {
             case MessageType.TEXT:
                 return MessageType.TEXT;
             case MessageType.BINARY_FILE:
@@ -46,7 +45,7 @@ class ParsedHeader extends WsBinHdr {
             default:
                 throw new Error(`Unknown header identifier: ${this.cIdentifier}`);
         }
-    }   
+    }
 
     /**
      * Parse a WsBinHdr from a Buffer at the given offset (default 0).
@@ -71,12 +70,13 @@ class ParsedHeader extends WsBinHdr {
         if (!isBinary) {
             throw new TypeError('Expected binary data for ParsedHeader');
         }
-        
+
         if (!Buffer.isBuffer(raw)) {
             throw new TypeError('Expected Buffer for ParsedHeader');
         }
 
         return ParsedHeader.fromBuffer(raw, 0);
-    }}
+    }
+}
 
 export default ParsedHeader;

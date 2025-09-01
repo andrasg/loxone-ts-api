@@ -1,30 +1,30 @@
-import { WebSocket } from "ws";
-import FileMessage from "./WebSocketMessages/FileMessage.js";
-import TextMessage from "./WebSocketMessages/TextMessage.js";
-import MessageType from "./WebSocketMessages/MessageType.js";
-import { LoxoneEvent, LoxoneEventCtor } from "./LoxoneEvents/LoxoneEvent.js";
-import LoxoneWeatherEvent from "./LoxoneEvents/LoxoneWeatherEvent.js";
-import LoxoneDayTimerEvent from "./LoxoneEvents/LoxoneDayTimerEvent.js";
-import LoxoneTextEvent from "./LoxoneEvents/LoxoneTextEvent.js";
-import LoxoneValueEvent from "./LoxoneEvents/LoxoneValueEvent.js";
-import EventEmitter from "events";
-import ParsedHeader from "./WebSocketMessages/ParsedHeader.js";
-import LoxoneClientEvents from "./LoxoneClientEvents.js";
-import LoxoneClient from "./LoxoneClient.js";
-import WebSocketMessage from "./WebSocketMessages/WebSocketMessage.js";
-import { AnsiLogger } from "node-ansi-logger";
+import { WebSocket } from 'ws';
+import FileMessage from './WebSocketMessages/FileMessage.js';
+import TextMessage from './WebSocketMessages/TextMessage.js';
+import MessageType from './WebSocketMessages/MessageType.js';
+import { LoxoneEvent, LoxoneEventCtor } from './LoxoneEvents/LoxoneEvent.js';
+import LoxoneWeatherEvent from './LoxoneEvents/LoxoneWeatherEvent.js';
+import LoxoneDayTimerEvent from './LoxoneEvents/LoxoneDayTimerEvent.js';
+import LoxoneTextEvent from './LoxoneEvents/LoxoneTextEvent.js';
+import LoxoneValueEvent from './LoxoneEvents/LoxoneValueEvent.js';
+import EventEmitter from 'node:events';
+import ParsedHeader from './WebSocketMessages/ParsedHeader.js';
+import LoxoneClientEvents from './LoxoneClientEvents.js';
+import LoxoneClient from './LoxoneClient.js';
+import WebSocketMessage from './WebSocketMessages/WebSocketMessage.js';
+import { AnsiLogger } from 'node-ansi-logger';
 
 // Generic pending queue entry for text/file command promises
-type PendingQueueEntry<T extends WebSocketMessage> = {
-    command:  {
-        originalCommand: string,
-        encryptedCommand: string | undefined
+interface PendingQueueEntry<T extends WebSocketMessage> {
+    command: {
+        originalCommand: string;
+        encryptedCommand: string | undefined;
     };
     encrypted: boolean;
     resolve: (msg: T) => void;
     reject: (err: any) => void;
     timer: NodeJS.Timeout;
-};
+}
 
 class WebSocketConnection extends EventEmitter {
     private nextExpectedMessageType: MessageType = MessageType.HEADER;
@@ -34,15 +34,15 @@ class WebSocketConnection extends EventEmitter {
 
     // keepalive handling
     private keepAliveInterval: NodeJS.Timeout | undefined;
-    private keepAliveEnabled: boolean = false;
+    private keepAliveEnabled = false;
 
     // queue of outstanding commands waiting for a text response
-    private commandQueue: Array<PendingQueueEntry<any>> = [];
+    private commandQueue: PendingQueueEntry<any>[] = [];
 
     private COMMAND_TIMEOUT: number;
     private KEEPALIVE_INTERVAL_MS = 15000;
     private KEEPALIVE_COMMAND_TIMEOUT_MS = 5000;
-    private lastFilenameRequested = "";
+    private lastFilenameRequested = '';
     private log: AnsiLogger;
 
     constructor(loxoneClient: LoxoneClient, host: string, commandTimeout: number) {
@@ -82,7 +82,7 @@ class WebSocketConnection extends EventEmitter {
 
             try {
                 // send unencrypted keepalive and wait for response or timeout
-                await this.sendUnencryptedTextCommand("keepalive", this.KEEPALIVE_COMMAND_TIMEOUT_MS);
+                await this.sendUnencryptedTextCommand('keepalive', this.KEEPALIVE_COMMAND_TIMEOUT_MS);
                 // if resolved, we'll get a keepalive header handled in handleMessage
             } catch (err) {
                 this.log.error('Keepalive command failed or timed out, disconnecting', err);
@@ -107,7 +107,7 @@ class WebSocketConnection extends EventEmitter {
             try {
                 clearTimeout(entry.timer);
                 entry.reject(err);
-            } catch (e) {
+            } catch {
                 // ignore individual reject errors
             }
         }
@@ -132,7 +132,7 @@ class WebSocketConnection extends EventEmitter {
         this.log.debug(`Received websocket message, isBinary=${isBinary}, nextExpectedMessageType=${MessageType[this.nextExpectedMessageType]}`);
 
         switch (this.nextExpectedMessageType) {
-            case MessageType.HEADER:
+            case MessageType.HEADER: {
                 if (!isBinary) {
                     throw new Error('Expected binary data for header');
                 }
@@ -157,6 +157,7 @@ class WebSocketConnection extends EventEmitter {
                 this.emit('header', header);
                 this.nextExpectedMessageType = header.getNextExpectedMessageType();
                 break;
+            }
             case MessageType.TEXT: {
                 if (isBinary) {
                     throw new Error('Expected non-binary data for text');
@@ -203,28 +204,28 @@ class WebSocketConnection extends EventEmitter {
                 break;
             }
             case MessageType.ETABLE_VALUES: {
-                let events = this.parseEventTables(LoxoneValueEvent, data, isBinary);
+                const events = this.parseEventTables(LoxoneValueEvent, data, isBinary);
                 this.log.debug(`Received ${events.length} value events`);
                 this.emit(LoxoneValueEvent.eventName, events);
                 this.nextExpectedMessageType = MessageType.HEADER;
                 break;
             }
             case MessageType.ETABLE_TEXT: {
-                let events = this.parseEventTables(LoxoneTextEvent, data, isBinary);
+                const events = this.parseEventTables(LoxoneTextEvent, data, isBinary);
                 this.log.debug(`Received ${events.length} text events`);
                 this.emit(LoxoneTextEvent.eventName, events);
                 this.nextExpectedMessageType = MessageType.HEADER;
                 break;
             }
             case MessageType.ETABLE_DAYTIMER: {
-                let events = this.parseEventTables(LoxoneDayTimerEvent, data, isBinary);
+                const events = this.parseEventTables(LoxoneDayTimerEvent, data, isBinary);
                 this.log.debug(`Received ${events.length} day timer events`);
                 this.emit(LoxoneDayTimerEvent.eventName, events);
                 this.nextExpectedMessageType = MessageType.HEADER;
                 break;
             }
             case MessageType.ETABLE_WEATHER: {
-                let events = this.parseEventTables(LoxoneWeatherEvent, data, isBinary);
+                const events = this.parseEventTables(LoxoneWeatherEvent, data, isBinary);
                 this.emit(LoxoneWeatherEvent.eventName, events);
                 this.nextExpectedMessageType = MessageType.HEADER;
                 break;
@@ -239,11 +240,7 @@ class WebSocketConnection extends EventEmitter {
      * @param isBinary - Whether the data is binary.
      * @returns An array of parsed event objects.
      */
-    private parseEventTables<T extends LoxoneEvent>(
-        ctor: LoxoneEventCtor<T>,
-        raw: WebSocket.RawData,
-        isBinary: boolean
-    ): T[] {
+    private parseEventTables<T extends LoxoneEvent>(ctor: LoxoneEventCtor<T>, raw: WebSocket.RawData, isBinary: boolean): T[] {
         if (!isBinary) throw new Error('Expected binary data for event table');
         if (!Buffer.isBuffer(raw)) {
             throw new Error('data is not buffer');
@@ -273,9 +270,9 @@ class WebSocketConnection extends EventEmitter {
         return this.sendCommand<FileMessage>(filename, false, timeoutMs);
     }
 
-    async sendCommand<T extends WebSocketMessage>(command: string, encrypt: boolean = false, timeoutMs: number = this.COMMAND_TIMEOUT): Promise<T> {
+    async sendCommand<T extends WebSocketMessage>(command: string, encrypt = false, timeoutMs: number = this.COMMAND_TIMEOUT): Promise<T> {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-            throw new Error("Cannot send websocket command, readystate is not open");
+            throw new Error('Cannot send websocket command, readystate is not open');
         }
 
         return new Promise<T>((resolve, reject) => {
@@ -289,14 +286,17 @@ class WebSocketConnection extends EventEmitter {
 
             const commandDefinition = {
                 originalCommand: command,
-                encryptedCommand: encrypt ? this.loxoneClient.auth.commandEncryption.getEncryptedCommand(command) : undefined
+                encryptedCommand: encrypt ? this.loxoneClient.auth.commandEncryption.getEncryptedCommand(command) : undefined,
             };
 
             // enqueue the pending command
             this.commandQueue.push({
-                command: commandDefinition, 
-                encrypted: encrypt, 
-                resolve, reject, timer });
+                command: commandDefinition,
+                encrypted: encrypt,
+                resolve,
+                reject,
+                timer,
+            });
 
             // finally, send the command string over the websocket
             try {
@@ -320,11 +320,13 @@ class WebSocketConnection extends EventEmitter {
     }
 
     private findCommandQueueEntryIndex(command: string): number {
-        const i = this.commandQueue.findIndex(q => 
-            (q.command.encryptedCommand && decodeURIComponent(q.command.encryptedCommand) === command) ||
-            (q.command.encryptedCommand && decodeURIComponent(q.command.encryptedCommand).replace("jdev", "dev") === command) ||
-            q.command.originalCommand === command || 
-            q.command.originalCommand.replace("jdev", "dev") === command);
+        const i = this.commandQueue.findIndex(
+            (q) =>
+                (q.command.encryptedCommand && decodeURIComponent(q.command.encryptedCommand) === command) ||
+                (q.command.encryptedCommand && decodeURIComponent(q.command.encryptedCommand).replace('jdev', 'dev') === command) ||
+                q.command.originalCommand === command ||
+                q.command.originalCommand.replace('jdev', 'dev') === command,
+        );
         return i;
     }
 
@@ -343,7 +345,6 @@ class WebSocketConnection extends EventEmitter {
     override emit<K extends keyof LoxoneClientEvents>(event: K, ...args: Parameters<LoxoneClientEvents[K]>): boolean {
         return super.emit(event as string, ...args);
     }
-
 }
 
-export default WebSocketConnection
+export default WebSocketConnection;
