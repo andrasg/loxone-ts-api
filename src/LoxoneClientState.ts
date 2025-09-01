@@ -5,6 +5,7 @@ enum LoxoneClientState {
     connected,
     authenticating,
     authenticated,
+    ready,
     reconnecting,
     error
 }

@@ -9,6 +9,8 @@ import TextMessage from "./WebSocketMessages/TextMessage.js";
 type LoxoneClientEvents = {
   connected: () => void;
   disconnected: (reason: string) => void;
+  authenticated: () => void;
+  ready: () => void;
   error: (err: Error) => void;
   header: (header: ParsedHeader) => void;
   keepalive: (header: ParsedHeader) => void;

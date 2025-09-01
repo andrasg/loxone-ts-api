@@ -156,6 +156,20 @@ async control(uuid: string, command: string, timeoutOverride = this.COMMAND_TIME
 `TextMessage` object with the result of the operation, or an exception.
 
 
+### `LoxoneClient.setLogLevel()`
+
+Sets the log level. By default it is set to INFO.
+
+#### Parameters
+
+```ts
+setLogLevel(level: LogLevel)
+```
+|parameter|description|
+|--|--|
+|level|Loglevel to set logging to. Uses the `node-ansi-logger` module|
+
+
 ### `LoxoneClient.checkToken()`
 
 Checks whether the token is still valid.
@@ -187,8 +201,17 @@ The `LoxoneClient` emits the following events:
 ```ts
   connected: () => void;
 ```
-
 Fires when the connection is successfully established.
+
+```ts
+  authenticated: () => void;
+```
+Fires when authentication was successful.
+
+```ts
+  ready: () => void;
+```
+Fires when `LoxoneClient` is ready to receive commands.
 
 ```ts
   disconnected: (reason: string) => void;
@@ -238,6 +261,7 @@ Fires when the `LoxoneClient` changes its state. Possible states are:
 - connected
 - authenticating
 - authenticated
+- ready
 - reconnecting
 - error
 

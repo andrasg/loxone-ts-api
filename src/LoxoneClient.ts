@@ -73,11 +73,16 @@ class LoxoneClient extends EventEmitter {
             await this.auth.authenticate(existingToken);
             this.setState(LoxoneClientState.authenticated);
             this.log.info("Authenticated");
+            this.emit('authenticated')
 
             // 5. enable keep-alive
             if (this.keepAliveEnabled) {
                 this.connection?.enableKeepAlive();
             }
+            this.setState(LoxoneClientState.ready);
+            this.log.info("LoxoneClient is ready to receive commands");
+            this.emit('ready');
+
         } catch (error: any) {
             this.log.error(`Could not connect: ${error.message} - ${error.cause}`, error);
             this.setState(LoxoneClientState.error)
@@ -308,7 +313,7 @@ class LoxoneClient extends EventEmitter {
     }
 
     private ensureGoodState(errorReason: string) {
-        if (this.state !== LoxoneClientState.authenticated) {
+        if (this.state !== LoxoneClientState.ready) {
             throw new Error(`Client is not in an expected state - ${errorReason}`);
         }
     }
