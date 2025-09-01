@@ -6,7 +6,19 @@ class LoxoneWeatherEvent extends LoxoneEvent {
     static eventName: LoxoneEventName = 'event_table_weather';
     lastUpdate: number;
     entries: number;
-    entry: any[];
+    entry: {
+        timestamp: number;
+        weatherType: number;
+        windDirection: number;
+        solarRadiation: number;
+        relativeHumidity: number;
+        temperature: number;
+        perceivedTemperature: number;
+        dewPoint: number;
+        precipitation: number;
+        windSpeed: number;
+        barometricPressure: number;
+    }[];
 
     constructor(binaryData: Buffer, offset: number) {
         super(binaryData, offset);

@@ -22,7 +22,7 @@ interface PendingQueueEntry<T extends WebSocketMessage> {
     };
     encrypted: boolean;
     resolve: (msg: T) => void;
-    reject: (err: any) => void;
+    reject: (err: unknown) => void;
     timer: NodeJS.Timeout;
 }
 
@@ -37,6 +37,7 @@ class WebSocketConnection extends EventEmitter {
     private keepAliveEnabled = false;
 
     // queue of outstanding commands waiting for a text response
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     private commandQueue: PendingQueueEntry<any>[] = [];
 
     private COMMAND_TIMEOUT: number;
@@ -331,14 +332,17 @@ class WebSocketConnection extends EventEmitter {
     }
 
     override on<K extends keyof LoxoneClientEvents>(event: K, listener: LoxoneClientEvents[K]): this {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return super.on(event as string, listener as (...args: any[]) => void);
     }
 
     override once<K extends keyof LoxoneClientEvents>(event: K, listener: LoxoneClientEvents[K]): this {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return super.once(event as string, listener as (...args: any[]) => void);
     }
 
     override off<K extends keyof LoxoneClientEvents>(event: K, listener: LoxoneClientEvents[K]): this {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return super.off(event as string, listener as (...args: any[]) => void);
     }
 

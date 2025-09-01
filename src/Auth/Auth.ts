@@ -9,12 +9,12 @@ class Auth {
     private username: string;
     private host: string;
     private connection: WebSocketConnection;
-    private publicKey: any;
+    private publicKey: { key: string; padding: number } | undefined;
     private sessionKey: string | undefined;
     tokenHandler: TokenHandler;
     userKey: Buffer<ArrayBuffer> | undefined;
-    userHashAlg: any;
-    userSalt: any;
+    userHashAlg: string | undefined;
+    userSalt: string | undefined;
     commandEncryption: CommandEncryption;
     log: AnsiLogger;
 
@@ -32,6 +32,7 @@ class Auth {
     async authenticate(existingToken?: string) {
         // 1. get public key
         await this.getPublicKey();
+        if (!this.publicKey) throw new Error('Public key is missing');
 
         // 2. verify public key
         // TODO
@@ -42,7 +43,7 @@ class Auth {
 
         // 5. encrypt key+iv with public key
         const payload = `${this.commandEncryption.key.toString('hex')}:${this.commandEncryption.iv.toString('hex')}`;
-        const encrypted = publicEncrypt(this.publicKey!, Buffer.from(payload));
+        const encrypted = publicEncrypt(this.publicKey, Buffer.from(payload));
         this.sessionKey = encrypted.toString('base64');
 
         // 6. exchange session key

@@ -46,8 +46,10 @@ class TokenHandler {
         // 1. Acquire new “key”, “salt” & “hashAlg” at once using “jdev/sys/getkey2/{user}”
         await this.auth.getUserKey();
 
+        if (!this.auth.userKey) throw new Error('User key is missing');
+
         // 2. hash token
-        const tokenHash = hmacHash(this.token, this.auth.userKey!);
+        const tokenHash = hmacHash(this.token, this.auth.userKey);
 
         // 3. Request a JSON Web Token “jdev/sys/refreshjwt/{tokenHash}/{this.username}”
         const refreshTokenCommand = `jdev/sys/refreshjwt/${tokenHash}/${this.username}`;
@@ -61,6 +63,7 @@ class TokenHandler {
     async acquireToken() {
         // 1. Acquire the “key”, “salt” & “hashAlg” at once using “jdev/sys/getkey2/{user}”
         await this.auth.getUserKey();
+        if (!this.auth.userKey) throw new Error('User key is missing');
 
         // 2. Hash the password including the user specific salt
         const pwdHashPayload = `${this.password}:${this.auth.userSalt}`;
@@ -68,7 +71,7 @@ class TokenHandler {
 
         // 3. Create the hmac hash that includes the user name
         const userHashPayload = `${this.username}:${pwdHash}`;
-        const userHash = hmacHash(userHashPayload, this.auth.userKey!);
+        const userHash = hmacHash(userHashPayload, this.auth.userKey);
 
         // 4. Request a JSON Web Token “jdev/sys/getjwt/{hash}/{user}/{permission}/{uuid}/{info}”
         const permission = 2;
@@ -96,7 +99,8 @@ class TokenHandler {
         if (!tokenTocheck) return;
 
         await this.auth.getUserKey();
-        const tokenHash = hmacHash(tokenTocheck, this.auth.userKey!);
+        if (!this.auth.userKey) throw new Error('User key is missing');
+        const tokenHash = hmacHash(tokenTocheck, this.auth.userKey);
 
         const checkTokenCommand = `jdev/sys/checktoken/${tokenHash}/${this.username}`;
         const checkTokenResponse = await this.connection.sendEncryptedTextCommand(checkTokenCommand);
@@ -111,7 +115,8 @@ class TokenHandler {
         if (!token) return;
 
         await this.auth.getUserKey();
-        const tokenHash = hmacHash(token, this.auth.userKey!);
+        if (!this.auth.userKey) throw new Error('User key is missing');
+        const tokenHash = hmacHash(token, this.auth.userKey);
 
         const authWithTokenCommand = `authwithtoken/${tokenHash}/${this.username}`;
         const authWithTokenResponse = await this.connection.sendEncryptedTextCommand(authWithTokenCommand);
@@ -127,8 +132,9 @@ class TokenHandler {
     async killToken() {
         if (this.token) {
             await this.auth.getUserKey();
+            if (!this.auth.userKey) throw new Error('User key is missing');
 
-            const tokenHash = hmacHash(this.token, this.auth.userKey!);
+            const tokenHash = hmacHash(this.token, this.auth.userKey);
             const killTokenCommand = `jdev/sys/killtoken/${tokenHash}/${this.username}`;
             try {
                 await this.connection.sendEncryptedTextCommand(killTokenCommand);
@@ -143,7 +149,8 @@ class TokenHandler {
 
     private processTokenResponse(tokenResponse: TextMessage) {
         this.validUntil = tokenResponse.value.validUntil;
-        const seconds = parseInt(this.validUntil!);
+        if (!this.validUntil) throw new Error('Token validUntil is missing');
+        const seconds = parseInt(this.validUntil);
         const baseMs = Date.UTC(2009, 0, 1, 0, 0, 0);
         this.validUntilDateUTC = new Date(baseMs + seconds * 1000);
 

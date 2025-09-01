@@ -3,7 +3,7 @@ import Auth from './Auth.js';
 
 class CommandEncryption {
     auth: Auth;
-    private current_salt: any;
+    private current_salt: string;
     private saltBytes = 16;
     private saltUsageCount: number;
     private maxSaltTime: number;

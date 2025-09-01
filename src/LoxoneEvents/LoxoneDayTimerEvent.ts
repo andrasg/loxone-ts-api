@@ -6,7 +6,7 @@ class LoxoneDayTimerEvent extends LoxoneEvent {
     static eventName: LoxoneEventName = 'event_table_day_timer';
     defValue: number;
     entries: number;
-    entry: any[];
+    entry: { mode: number; from: number; to: number; needActivate: number; value: number }[];
 
     constructor(binaryData: Buffer, offset: number) {
         super(binaryData, offset);

@@ -19,6 +19,7 @@ class LoxoneClient extends EventEmitter {
     isGen2 = false;
     keepAliveEnabled = true;
     private COMMAND_TIMEOUT = 15000;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     structureFile: any;
     state: LoxoneClientState = LoxoneClientState.disconnected;
     autoReconnect: AutoReconnect;
@@ -244,6 +245,7 @@ class LoxoneClient extends EventEmitter {
         });
 
         if (this.autoReconnect.autoReconnectEnabled) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             this.connection.on('disconnected', async (reason: string) => {
                 try {
                     await this.autoReconnect.startAutoReconnect();
@@ -275,6 +277,7 @@ class LoxoneClient extends EventEmitter {
 
         for (const event of EVENTS) {
             // forward any args from the connection to the client emitter
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             this.connection.on(event as keyof LoxoneClientEvents, (...args: any[]) => this.emit(event as keyof LoxoneClientEvents, ...(args as any)));
         }
 
@@ -294,9 +297,14 @@ class LoxoneClient extends EventEmitter {
 
     private async checkVersion() {
         const response = await fetch('http://' + this.host + '/jdev/cfg/apiKey');
+        if (response.status === 503) {
+            throw new Error('Miniserver is rebooting');
+        }
         if (!response.ok) {
             this.log.error(`Failed to check version: ${response.status}`, response);
+            throw new Error('Failed to check version');
         }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const data: any = await response.json();
         const jsonString = data.LL.value.replace(/'/g, '"');
         const dataJson = JSON.parse(jsonString);
@@ -328,14 +336,17 @@ class LoxoneClient extends EventEmitter {
 
     // Typed emitting of events
     override on<K extends keyof LoxoneClientEvents>(event: K, listener: LoxoneClientEvents[K]): this {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return super.on(event as string, listener as (...args: any[]) => void);
     }
 
     override once<K extends keyof LoxoneClientEvents>(event: K, listener: LoxoneClientEvents[K]): this {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return super.once(event as string, listener as (...args: any[]) => void);
     }
 
     override off<K extends keyof LoxoneClientEvents>(event: K, listener: LoxoneClientEvents[K]): this {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return super.off(event as string, listener as (...args: any[]) => void);
     }
 

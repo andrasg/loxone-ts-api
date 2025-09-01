@@ -6,6 +6,7 @@ class TextMessage extends WebSocketMessage {
     type: 'json' | 'control' | 'text';
     data: string | undefined;
     control: string | undefined;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     value: any;
     code: number | undefined;
 
