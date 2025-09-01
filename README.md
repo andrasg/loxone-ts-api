@@ -60,7 +60,6 @@ await client.enablesUpdates();
 await client.disconnect(); 
 ```
 
-
 ## API surface
 
 ### `LoxoneClient`
@@ -322,6 +321,10 @@ Fires when the `LoxoneClient` changes its state. Possible states are:
   event_text: (event: LoxoneTextEvent) => void;
 ```
 Fires when Loxone value or text update events are received.
+
+## Disclaimer
+
+While the author took special care to follow Loxone [official documentation](https://www.loxone.com/wp-content/uploads/datasheets/CommunicatingWithMiniserver.pdf), use this module at your own risk.
 
 ## Acknowledgements, credits
 
