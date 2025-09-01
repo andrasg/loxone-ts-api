@@ -9,7 +9,7 @@
     "clean": "rm -rf dist",
     "build": "npm run clean && tsc -p .",
     "typecheck": "tsc -p . --noEmit",
-    "start": "node dist/index.js"
+    "start": "node dist/workbench.js"
   },
   "repository": {
     "type": "git",
@@ -30,7 +30,7 @@
     "ws": "^8.18.3"
   },
   "devDependencies": {
-    "@types/node": "^18.0.0",
+    "@types/node": "^18.19.123",
     "@types/ws": "^8.18.1",
     "ts-node": "^10.9.1",
     "typescript": "^5.5.0"
