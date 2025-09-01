@@ -250,13 +250,18 @@ class LoxoneClient extends EventEmitter {
         });
 
         if (this.autoReconnect.autoReconnectEnabled) {
-            // use wrappers so we preserve the AutoReconnect instance as `this`,
-            // properly await async methods and catch errors to avoid unhandled rejections
             this.connection.on('disconnected', async (reason: string) => {
                 try {
                     await this.autoReconnect.startAutoReconnect();
                 } catch (error: any) {
                     this.log.error(`Failed to start auto reconnect: ${error?.message}`, error);
+                }
+            });
+            this.connection.on('connected', async () => {
+                try {
+                    this.autoReconnect.stopAutoReconnect();
+                } catch (error: any) {
+                    this.log.error(`Failed to stop auto reconnect: ${error?.message}`, error);
                 }
             });
         }
