@@ -12,7 +12,8 @@ import ParsedHeader from './WebSocketMessages/ParsedHeader.js';
 import LoxoneClientEvents from './LoxoneClientEvents.js';
 import LoxoneClient from './LoxoneClient.js';
 import WebSocketMessage from './WebSocketMessages/WebSocketMessage.js';
-import { AnsiLogger } from 'node-ansi-logger';
+import { AnsiLogger, GREY } from 'node-ansi-logger';
+import { maskEnc } from './Utils/Masker.js';
 
 // Generic pending queue entry for text/file command promises
 interface PendingQueueEntry<T extends WebSocketMessage> {
@@ -130,8 +131,6 @@ class WebSocketConnection extends EventEmitter {
     }
 
     handleMessage(data: WebSocket.RawData, isBinary: boolean) {
-        this.log.debug(`Received websocket message, isBinary=${isBinary}, nextExpectedMessageType=${MessageType[this.nextExpectedMessageType]}`);
-
         switch (this.nextExpectedMessageType) {
             case MessageType.HEADER: {
                 if (!isBinary) {
@@ -146,14 +145,13 @@ class WebSocketConnection extends EventEmitter {
                         clearTimeout(entry.timer);
                         // resolve the waiting promise with the parsed header
                         entry.resolve(header);
-                        this.log.debug('  Received keepalive');
                     } else {
                         // No matching promise — emit event for consumers
                         this.emit('keepalive', header);
                     }
                 }
 
-                this.log.debug(`  Received header with message type ${MessageType[header.messageType]}, estimated = ${header.isEstimated}`);
+                // this.messageLogger.debug(`  Received header with message type ${MessageType[header.messageType]}, estimated = ${header.isEstimated}`);
 
                 this.emit('header', header);
                 this.nextExpectedMessageType = header.getNextExpectedMessageType();
@@ -164,7 +162,7 @@ class WebSocketConnection extends EventEmitter {
                     throw new Error('Expected non-binary data for text');
                 }
                 const textMessage = new TextMessage(data.toString());
-                this.log.debug(`  Received text message: ${textMessage.toString()}`);
+                this.log.info(`  Received text message: ${textMessage.toString()}`);
                 if (!textMessage.control) {
                     this.emit('text_message', textMessage);
                     this.nextExpectedMessageType = MessageType.HEADER;
@@ -189,6 +187,7 @@ class WebSocketConnection extends EventEmitter {
                 // TODO: Implement filename handling
                 const fileMessage = new FileMessage(data, isBinary, this.lastFilenameRequested);
 
+                this.log.info(`  Received file message: ${fileMessage.toString()}`);
                 // Try to find a matching pending command by control
                 const idx = this.findCommandQueueEntryIndex(fileMessage.filename);
                 if (idx !== -1) {
@@ -206,21 +205,18 @@ class WebSocketConnection extends EventEmitter {
             }
             case MessageType.ETABLE_VALUES: {
                 const events = this.parseEventTables(LoxoneValueEvent, data, isBinary);
-                this.log.debug(`Received ${events.length} value events`);
                 this.emit(LoxoneValueEvent.eventName, events);
                 this.nextExpectedMessageType = MessageType.HEADER;
                 break;
             }
             case MessageType.ETABLE_TEXT: {
                 const events = this.parseEventTables(LoxoneTextEvent, data, isBinary);
-                this.log.debug(`Received ${events.length} text events`);
                 this.emit(LoxoneTextEvent.eventName, events);
                 this.nextExpectedMessageType = MessageType.HEADER;
                 break;
             }
             case MessageType.ETABLE_DAYTIMER: {
                 const events = this.parseEventTables(LoxoneDayTimerEvent, data, isBinary);
-                this.log.debug(`Received ${events.length} day timer events`);
                 this.emit(LoxoneDayTimerEvent.eventName, events);
                 this.nextExpectedMessageType = MessageType.HEADER;
                 break;
@@ -302,10 +298,12 @@ class WebSocketConnection extends EventEmitter {
             // finally, send the command string over the websocket
             try {
                 if (commandDefinition.encryptedCommand) {
-                    this.log.debug(`Sending encrypted command ${command} (${commandDefinition.encryptedCommand})`);
+                    this.log.info(`Sending encrypted command ${command} ${GREY}(${maskEnc(commandDefinition.encryptedCommand)})`);
                     this.ws?.send(commandDefinition.encryptedCommand);
                 } else {
-                    this.log.debug(`Sending command ${command}`);
+                    if (command !== 'keepalive') {
+                        this.log.info(`Sending command ${command}`);
+                    }
                     this.ws?.send(command);
                 }
             } catch (err) {

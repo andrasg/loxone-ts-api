@@ -6,6 +6,7 @@ class FileMessage extends WebSocketMessage {
     type: 'json' | 'text' | 'binary';
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: any;
+    length: number;
 
     constructor(message: WebSocket.RawData, isBinary: boolean, filename: string) {
         super();
@@ -13,6 +14,7 @@ class FileMessage extends WebSocketMessage {
         this.filename = filename;
 
         if (!isBinary) {
+            this.length = message.toString().length;
             if (filename.match(/\.json$/)) {
                 this.type = 'json';
                 this.data = JSON.parse(message.toString());
@@ -23,7 +25,12 @@ class FileMessage extends WebSocketMessage {
         } else {
             this.type = 'binary';
             this.data = message as Buffer;
+            this.length = Buffer.byteLength(this.data);
         }
+    }
+
+    toString(): string {
+        return `filename: ${this.filename}, type: ${this.type}, length: ${this.length} bytes`;
     }
 }
 

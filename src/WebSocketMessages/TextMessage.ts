@@ -1,5 +1,6 @@
 import { GREEN, GREY, RED } from 'node-ansi-logger';
 import WebSocketMessage from './WebSocketMessage.js';
+import { maskEnc, maskProperties } from '../Utils/Masker.js';
 
 class TextMessage extends WebSocketMessage {
     private json;
@@ -35,10 +36,16 @@ class TextMessage extends WebSocketMessage {
         switch (this.type) {
             case 'text':
                 return `${this.formatCode(this.code)} - ${this.data ?? ''}`;
-            case 'json':
-                return JSON.stringify(this.data ?? {});
-            case 'control':
-                return `${this.formatCode(this.code)} - ${this.control} = ${JSON.stringify(this.value)}`;
+            case 'json': {
+                const jsonText = JSON.stringify(this.data ?? {});
+                return maskProperties(jsonText, ['token', 'key', 'salt']);
+            }
+            case 'control': {
+                let jsonText = JSON.stringify(this.value);
+                if (jsonText === '"1"') jsonText = `${GREEN}"1"`;
+                if (jsonText === '"0"') jsonText = `${RED}"0"`;
+                return `${this.formatCode(this.code)}${GREY} - ${maskEnc(this.control)} = ${maskProperties(jsonText, ['token', 'key', 'salt'])}`;
+            }
         }
     }
 
