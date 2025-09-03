@@ -33,7 +33,7 @@ class LoxoneClient extends EventEmitter {
      * @param password Password for the user
      * @param keepAliveEnabed (optional) whether to enable keepalive
      */
-    constructor(host: string, username: string, password: string, clientOptions: Partial<LoxoneClientOptions> | LoxoneClientOptions) {
+    constructor(host: string, username: string, password: string, clientOptions: Partial<LoxoneClientOptions> | LoxoneClientOptions = new LoxoneClientOptions()) {
         super();
         const options = clientOptions instanceof LoxoneClientOptions ? clientOptions : new LoxoneClientOptions(clientOptions);
 
