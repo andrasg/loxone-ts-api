@@ -46,13 +46,15 @@ class WebSocketConnection extends EventEmitter {
     private KEEPALIVE_COMMAND_TIMEOUT_MS = 5000;
     private lastFilenameRequested = '';
     private log: AnsiLogger;
+    private messageLog: boolean;
 
-    constructor(loxoneClient: LoxoneClient, host: string, commandTimeout: number) {
+    constructor(loxoneClient: LoxoneClient, host: string, commandTimeout: number, messageLog: boolean) {
         super();
         this.loxoneClient = loxoneClient;
         this.host = host;
         this.COMMAND_TIMEOUT = commandTimeout;
         this.log = loxoneClient.log;
+        this.messageLog = messageLog;
     }
 
     async connect() {
@@ -162,7 +164,7 @@ class WebSocketConnection extends EventEmitter {
                     throw new Error('Expected non-binary data for text');
                 }
                 const textMessage = new TextMessage(data.toString());
-                this.log.info(`  Received text message: ${textMessage.toString()}`);
+                if (this.messageLog) this.log.info(`  Received text message: ${textMessage.toString()}`);
                 if (!textMessage.control) {
                     this.emit('text_message', textMessage);
                     this.nextExpectedMessageType = MessageType.HEADER;
@@ -187,7 +189,7 @@ class WebSocketConnection extends EventEmitter {
                 // TODO: Implement filename handling
                 const fileMessage = new FileMessage(data, isBinary, this.lastFilenameRequested);
 
-                this.log.info(`  Received file message: ${fileMessage.toString()}`);
+                if (this.messageLog) this.log.info(`  Received file message: ${fileMessage.toString()}`);
                 // Try to find a matching pending command by control
                 const idx = this.findCommandQueueEntryIndex(fileMessage.filename);
                 if (idx !== -1) {
@@ -298,11 +300,11 @@ class WebSocketConnection extends EventEmitter {
             // finally, send the command string over the websocket
             try {
                 if (commandDefinition.encryptedCommand) {
-                    this.log.info(`Sending encrypted command ${command} ${GREY}(${maskEnc(commandDefinition.encryptedCommand)})`);
+                    if (this.messageLog) this.log.info(`Sending encrypted command ${command} ${GREY}(${maskEnc(commandDefinition.encryptedCommand)})`);
                     this.ws?.send(commandDefinition.encryptedCommand);
                 } else {
                     if (command !== 'keepalive') {
-                        this.log.info(`Sending command ${command}`);
+                        if (this.messageLog) this.log.info(`Sending command ${command}`);
                     }
                     this.ws?.send(command);
                 }

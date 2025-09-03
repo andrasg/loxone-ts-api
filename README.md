@@ -71,8 +71,7 @@ Key entrypoint to the module.
         host: string,
         username: string,
         password: string,
-        autoReconnectEnabled: boolean = true,
-        keepAliveEnabled: boolean = true
+        clientOptions: Partial<LoxoneClientOptions>
     )
 ```
 
@@ -83,8 +82,9 @@ Key entrypoint to the module.
 |host|IP address or hostname of the Loxone Miniserver|
 |username|username to use|
 |password|password for the user|
-|autoReconnectEnabled|optional parameter to override the default behavior of automatically reconnecting on failure/disconnection|
-|keepAliveEnabled|optional parameter to override the default behavior of enabling a 15 second keepalive
+|clientOptions.autoReconnectEnabled|optional parameter to override the default behavior of automatically reconnecting on failure/disconnection|
+|clientOptions.keepAliveEnabled|optional parameter to override the default behavior of enabling a 15 second keepalive
+|clientOptions.messageLogEnabled|optional parameter to override the default behavior of enabling a logging of messages and responses
 
 Instantiating a `LoxoneClient` instance does not trigger any network communication.
 

@@ -10,6 +10,7 @@ import { AnsiLogger, LogLevel, nf, TimestampFormat, YELLOW } from 'node-ansi-log
 import { exit } from 'node:process';
 import LoxoneValueEvent from './LoxoneEvents/LoxoneValueEvent.js';
 import LoxoneTextEvent from './LoxoneEvents/LoxoneTextEvent.js';
+import { LoxoneClientOptions } from './LoxoneClientOptions.js';
 
 class LoxoneClient extends EventEmitter {
     private connection: WebSocketConnection;
@@ -32,13 +33,15 @@ class LoxoneClient extends EventEmitter {
      * @param password Password for the user
      * @param keepAliveEnabed (optional) whether to enable keepalive
      */
-    constructor(host: string, username: string, password: string, autoReconnectEnabled = true, keepAliveEnabled = true) {
+    constructor(host: string, username: string, password: string, clientOptions: Partial<LoxoneClientOptions> | LoxoneClientOptions) {
         super();
-        this.connection = new WebSocketConnection(this, host, this.COMMAND_TIMEOUT);
+        const options = clientOptions instanceof LoxoneClientOptions ? clientOptions : new LoxoneClientOptions(clientOptions);
+
+        this.connection = new WebSocketConnection(this, host, this.COMMAND_TIMEOUT, options.messageLogEnabled);
         this.auth = new Auth(this.log, this.connection, host, username, password);
         this.host = host;
-        this.autoReconnect = new AutoReconnect(this, this.log, autoReconnectEnabled);
-        this.keepAliveEnabled = keepAliveEnabled;
+        this.autoReconnect = new AutoReconnect(this, this.log, options.autoReconnectEnabled);
+        this.keepAliveEnabled = options.keepAliveEnabled;
     }
 
     /**
@@ -97,11 +100,11 @@ class LoxoneClient extends EventEmitter {
         try {
             const structureFileMessage = await this.sendFileCommand('data/LoxAPP3.json');
             this.structureFile = structureFileMessage.data;
-            this.log.info(`  Received structure file with last modified: ${this.structureFile.lastModified}`);
+            this.log.info(`Received structure file with last modified: ${this.structureFile.lastModified}`);
             return this.structureFile;
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
-            this.log.error(`  Could not get structure file: ${error.message} - ${error.cause}`, error);
+            this.log.error(`Could not get structure file: ${error.message} - ${error.cause}`, error);
             throw new Error('Could not get structure file', { cause: error as Error });
         }
     }
@@ -115,7 +118,7 @@ class LoxoneClient extends EventEmitter {
             await this.connection.sendUnencryptedTextCommand('jdev/sps/enablebinstatusupdate');
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
-            this.log.error(`  Could not enable updates: ${error.message} - ${error.cause}`, error);
+            this.log.error(`Could not enable updates: ${error.message} - ${error.cause}`, error);
             throw new Error('Could not enable updates', { cause: error as Error });
         }
     }
@@ -156,7 +159,7 @@ class LoxoneClient extends EventEmitter {
             await this.auth.tokenHandler.checkToken(token);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
-            this.log.error(`  Could not check token: ${error.message} - ${error.cause}`, error);
+            this.log.error(`Could not check token: ${error.message} - ${error.cause}`, error);
             throw new Error('Could not check token', { cause: error as Error });
         }
     }
@@ -170,7 +173,7 @@ class LoxoneClient extends EventEmitter {
             await this.auth.tokenHandler.refreshToken();
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
-            this.log.error(`  Could not refresh token: ${error.message} - ${error.cause}`, error);
+            this.log.error(`Could not refresh token: ${error.message} - ${error.cause}`, error);
             throw new Error('Could not refresh token', { cause: error as Error });
         }
     }
@@ -188,8 +191,8 @@ class LoxoneClient extends EventEmitter {
             return await this.connection?.sendCommand(command, encrypted, timeoutOverride);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
-            this.log.error(`  Could not send text command: ${error.message} - ${error.cause}`, error);
-            throw new Error('Could not send text command', { cause: error as Error });
+            this.log.error(`${command} - Could not send text command: ${error.message} - ${error.cause}`, error);
+            throw new Error(`${command} - Could not send text command`, { cause: error as Error });
         }
     }
 
@@ -205,8 +208,8 @@ class LoxoneClient extends EventEmitter {
             return await this.connection?.sendUnencryptedFileCommand(filename, timeoutOverride);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
-            this.log.error(`  Could not send file command: ${error.message} - ${error.cause}`, error);
-            throw new Error('Could not send file command', { cause: error as Error });
+            this.log.error(`${filename} - Could not send file command: ${error.message} - ${error.cause}`, error);
+            throw new Error(`${filename} - Could not send file command`, { cause: error as Error });
         }
     }
 
@@ -223,14 +226,14 @@ class LoxoneClient extends EventEmitter {
             const encrypted = !this.isGen2;
             const fullCommand = `jdev/sps/io/${uuid}/${command}`;
             const response = await this.connection.sendCommand<TextMessage>(fullCommand, encrypted, timeoutOverride);
-            if (response.code === 404) this.log.error(`  Loxone control not found`);
-            else if (response.code !== 200) this.log.error(`  Unknown error, response was not 200 OK, but ${response.code}`);
-            if (response.value === '0') this.log.error('  Loxone command invalid, response indicates unsuccessful execution (response.value = 0)');
+            if (response.code === 404) this.log.error(`Loxone control '${uuid}' not found`);
+            else if (response.code !== 200) this.log.error(`${uuid}/${command} - unknown error, response was not 200 OK, but ${response.code}`);
+            if (response.value === '0') this.log.error(`Loxone command '${command}' invalid, response indicates unsuccessful execution (response.value = 0)`);
             return response;
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
-            this.log.error(`  Could not execute control command: ${error.message} - ${error.cause}`, error);
-            throw new Error('Could not execute control command', { cause: error as Error });
+            this.log.error(`${uuid}/${command} - Could not execute control command: ${error.message} - ${error.cause}`, error);
+            throw new Error(`${uuid}/${command} - Could not execute control command`, { cause: error as Error });
         }
     }
 
