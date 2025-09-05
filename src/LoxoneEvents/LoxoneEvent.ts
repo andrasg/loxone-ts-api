@@ -1,5 +1,4 @@
 import UUID from '../WebSocketMessages/UUID.js';
-import LoxoneEventName from './LoxoneEventName.js';
 
 abstract class LoxoneEvent {
     uuid: UUID;
@@ -9,7 +8,7 @@ abstract class LoxoneEvent {
     }
 
     abstract data_length(): number;
-    abstract eventName(): LoxoneEventName;
+    abstract toPath(): string;
 }
 
 type LoxoneEventCtor<T extends LoxoneEvent> = new (binaryData: Buffer, offset: number) => T;

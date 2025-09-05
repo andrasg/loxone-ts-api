@@ -1,13 +1,13 @@
 enum LoxoneClientState {
-    disconnected,
-    disconnecting,
-    connecting,
-    connected,
-    authenticating,
-    authenticated,
-    ready,
-    reconnecting,
-    error,
+    disconnected = 'disconnected',
+    disconnecting = 'disconnecting',
+    connecting = 'connecting',
+    connected = 'connected',
+    authenticating = 'authenticating',
+    authenticated = 'authenticated',
+    ready = 'ready',
+    reconnecting = 'reconnecting',
+    error = 'error',
 }
 
 export default LoxoneClientState;

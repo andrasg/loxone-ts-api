@@ -1,5 +1,5 @@
 import { AnsiLogger } from 'node-ansi-logger';
-import LoxoneClient from './LoxoneClient.js';
+import LoxoneClient from '../LoxoneClient.js';
 
 class AutoReconnect {
     autoReconnectEnabled: boolean;
@@ -40,6 +40,7 @@ class AutoReconnect {
             this.log.info(`Reconnecting after disconnect...`);
             try {
                 await this.client.connect(existingToken);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
             } catch (err: any) {
                 this.log.error(`Reconnect attempt failed: ${err?.message ?? err}`, err);
             }

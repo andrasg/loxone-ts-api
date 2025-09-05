@@ -1,6 +1,6 @@
 import Auth from './Auth.js';
 import { hash, hmacHash } from '../Utils/Hasher.js';
-import WebSocketConnection from '../WebSocketConnection.js';
+import WebSocketConnection from '../Services/WebSocketConnection.js';
 import TextMessage from '../WebSocketMessages/TextMessage.js';
 import { AnsiLogger } from 'node-ansi-logger';
 

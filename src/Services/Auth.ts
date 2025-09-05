@@ -1,5 +1,5 @@
 import TokenHandler from './TokenHandler.js';
-import WebSocketConnection from '../WebSocketConnection.js';
+import WebSocketConnection from '../Services/WebSocketConnection.js';
 import { constants, publicEncrypt } from 'node:crypto';
 import CommandEncryption from './CommandEncryption.js';
 import { AnsiLogger } from 'node-ansi-logger';

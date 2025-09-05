@@ -85,6 +85,7 @@ Key entrypoint to the module.
 |clientOptions.autoReconnectEnabled|optional parameter to override the default behavior of automatically reconnecting on failure/disconnection|
 |clientOptions.keepAliveEnabled|optional parameter to override the default behavior of enabling a 15 second keepalive
 |clientOptions.messageLogEnabled|optional parameter to override the default behavior of enabling a logging of messages and responses
+|clientOptions.logAllEvents|optional parameter to log all value and text update events to the console
 
 Instantiating a `LoxoneClient` instance does not trigger any network communication.
 
@@ -133,6 +134,17 @@ Retrieves the Loxone structure file (`LoxAPP3.json`)
 ```ts
 async getStructureFile()
 ```
+
+### `LoxoneClient.parseStructureFile()`
+
+Parses the Loxone structure file (`LoxAPP3.json`). After calling this method, event updates will contain enriched information about the room, control and states.
+
+#### Parameters
+
+```ts
+async parseStructureFile()
+```
+
 
 ### `LoxoneClient.enableUpdates()`
 
@@ -193,7 +205,7 @@ See the Loxone [structure file](https://www.loxone.com/wp-content/uploads/datash
 #### Parameters
 
 ```ts
-async control(uuid: string, command: string, timeoutOverride = this.COMMAND_TIMEOUT): Promise<TextMessage>
+async control(uuid: UUID | string, command: string, timeoutOverride = this.COMMAND_TIMEOUT): Promise<TextMessage>
 ```
 
 |parameter|description|

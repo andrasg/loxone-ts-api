@@ -1,9 +1,8 @@
-import { LoxoneEvent } from './LoxoneEvent.js';
-import LoxoneEventName from './LoxoneEventName.js';
+import { GREY, YELLOW } from 'node-ansi-logger';
+import LoxoneEnrichableEvent from './LoxoneEnrichableEvent.js';
 
-class LoxoneValueEvent extends LoxoneEvent {
+class LoxoneValueEvent extends LoxoneEnrichableEvent {
     value: number;
-    static eventName: LoxoneEventName = 'event_table_values';
 
     constructor(binaryData: Buffer, offset: number) {
         super(binaryData, offset);
@@ -15,8 +14,13 @@ class LoxoneValueEvent extends LoxoneEvent {
         return 8 + this.uuid.data_length; // should always be 24
     }
 
-    override eventName(): LoxoneEventName {
-        return LoxoneValueEvent.eventName;
+    override toPath(): string {
+        const control = this.control?.parent ? `${this.control.parent.name}${GREY}/${YELLOW}${this.control.name}` : this.control?.name;
+        return this.isEnriched ? `${YELLOW}${this.room?.name}${GREY}/${YELLOW}${control}${GREY}/${YELLOW}${this.state?.name}${GREY}` : this.uuid.stringValue;
+    }
+
+    override toString(): string {
+        return `${YELLOW}${this.toPath()}${GREY} = ${YELLOW}${this.value}`;
     }
 }
 

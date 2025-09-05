@@ -1,9 +1,7 @@
 import UUID from '../WebSocketMessages/UUID.js';
 import { LoxoneEvent } from './LoxoneEvent.js';
-import LoxoneEventName from './LoxoneEventName.js';
 
 class LoxoneWeatherEvent extends LoxoneEvent {
-    static eventName: LoxoneEventName = 'event_table_weather';
     lastUpdate: number;
     entries: number;
     entry: {
@@ -55,8 +53,8 @@ class LoxoneWeatherEvent extends LoxoneEvent {
         return this.uuid.data_length + 4 + 4 + this.entries * 68;
     }
 
-    override eventName(): LoxoneEventName {
-        return LoxoneWeatherEvent.eventName;
+    override toPath(): string {
+        return this.uuid.stringValue;
     }
 }
 

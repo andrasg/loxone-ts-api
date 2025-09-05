@@ -1,8 +1,7 @@
 import { GREEN, GREY, RED } from 'node-ansi-logger';
-import WebSocketMessage from './WebSocketMessage.js';
 import { maskEnc, maskProperties } from '../Utils/Masker.js';
 
-class TextMessage extends WebSocketMessage {
+class TextMessage {
     private json;
     type: 'json' | 'control' | 'text';
     data: string | undefined;
@@ -12,7 +11,6 @@ class TextMessage extends WebSocketMessage {
     code: number | undefined;
 
     constructor(utf8Data: string) {
-        super();
         try {
             this.json = JSON.parse(utf8Data);
             this.type = 'json';

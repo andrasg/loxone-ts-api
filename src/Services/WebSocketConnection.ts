@@ -1,22 +1,21 @@
 import { WebSocket } from 'ws';
-import FileMessage from './WebSocketMessages/FileMessage.js';
-import TextMessage from './WebSocketMessages/TextMessage.js';
-import MessageType from './WebSocketMessages/MessageType.js';
-import { LoxoneEvent, LoxoneEventCtor } from './LoxoneEvents/LoxoneEvent.js';
-import LoxoneWeatherEvent from './LoxoneEvents/LoxoneWeatherEvent.js';
-import LoxoneDayTimerEvent from './LoxoneEvents/LoxoneDayTimerEvent.js';
-import LoxoneTextEvent from './LoxoneEvents/LoxoneTextEvent.js';
-import LoxoneValueEvent from './LoxoneEvents/LoxoneValueEvent.js';
+import FileMessage from '../WebSocketMessages/FileMessage.js';
+import TextMessage from '../WebSocketMessages/TextMessage.js';
+import MessageType from '../WebSocketMessages/MessageType.js';
+import { LoxoneEvent, LoxoneEventCtor } from '../LoxoneEvents/LoxoneEvent.js';
+import LoxoneWeatherEvent from '../LoxoneEvents/LoxoneWeatherEvent.js';
+import LoxoneDayTimerEvent from '../LoxoneEvents/LoxoneDayTimerEvent.js';
+import LoxoneTextEvent from '../LoxoneEvents/LoxoneTextEvent.js';
+import LoxoneValueEvent from '../LoxoneEvents/LoxoneValueEvent.js';
 import EventEmitter from 'node:events';
-import ParsedHeader from './WebSocketMessages/ParsedHeader.js';
-import LoxoneClientEvents from './LoxoneClientEvents.js';
-import LoxoneClient from './LoxoneClient.js';
-import WebSocketMessage from './WebSocketMessages/WebSocketMessage.js';
+import ParsedHeader from '../WebSocketMessages/ParsedHeader.js';
+import LoxoneClient from '../LoxoneClient.js';
 import { AnsiLogger, GREY } from 'node-ansi-logger';
-import { maskEnc } from './Utils/Masker.js';
+import { maskEnc } from '../Utils/Masker.js';
+import WebSocketConnectionEvents from './WebSocketConnectionEvents.js';
 
 // Generic pending queue entry for text/file command promises
-interface PendingQueueEntry<T extends WebSocketMessage> {
+interface PendingQueueEntry<T extends FileMessage | TextMessage> {
     command: {
         originalCommand: string;
         encryptedCommand: string | undefined;
@@ -48,12 +47,12 @@ class WebSocketConnection extends EventEmitter {
     private log: AnsiLogger;
     private messageLog: boolean;
 
-    constructor(loxoneClient: LoxoneClient, host: string, commandTimeout: number, messageLog: boolean) {
+    constructor(loxoneClient: LoxoneClient, log: AnsiLogger, host: string, commandTimeout: number, messageLog: boolean) {
         super();
         this.loxoneClient = loxoneClient;
         this.host = host;
         this.COMMAND_TIMEOUT = commandTimeout;
-        this.log = loxoneClient.log;
+        this.log = log;
         this.messageLog = messageLog;
     }
 
@@ -207,39 +206,32 @@ class WebSocketConnection extends EventEmitter {
             }
             case MessageType.ETABLE_VALUES: {
                 const events = this.parseEventTables(LoxoneValueEvent, data, isBinary);
-                this.emit(LoxoneValueEvent.eventName, events);
+                this.emit('event_table_values', events);
                 this.nextExpectedMessageType = MessageType.HEADER;
                 break;
             }
             case MessageType.ETABLE_TEXT: {
                 const events = this.parseEventTables(LoxoneTextEvent, data, isBinary);
-                this.emit(LoxoneTextEvent.eventName, events);
+                this.emit('event_table_text', events);
                 this.nextExpectedMessageType = MessageType.HEADER;
                 break;
             }
             case MessageType.ETABLE_DAYTIMER: {
                 const events = this.parseEventTables(LoxoneDayTimerEvent, data, isBinary);
-                this.emit(LoxoneDayTimerEvent.eventName, events);
+                this.emit('event_table_day_timer', events);
                 this.nextExpectedMessageType = MessageType.HEADER;
                 break;
             }
             case MessageType.ETABLE_WEATHER: {
                 const events = this.parseEventTables(LoxoneWeatherEvent, data, isBinary);
-                this.emit(LoxoneWeatherEvent.eventName, events);
+                this.emit('event_table_weather', events);
                 this.nextExpectedMessageType = MessageType.HEADER;
                 break;
             }
         }
     }
 
-    /**
-     * Parses event tables from the WebSocket raw data.
-     * @param ctor - The constructor of the event type.
-     * @param raw - The raw WebSocket data.
-     * @param isBinary - Whether the data is binary.
-     * @returns An array of parsed event objects.
-     */
-    private parseEventTables<T extends LoxoneEvent>(ctor: LoxoneEventCtor<T>, raw: WebSocket.RawData, isBinary: boolean): T[] {
+    private parseEventTables<T extends LoxoneEvent>(ctorType: LoxoneEventCtor<T>, raw: WebSocket.RawData, isBinary: boolean): T[] {
         if (!isBinary) throw new Error('Expected binary data for event table');
         if (!Buffer.isBuffer(raw)) {
             throw new Error('data is not buffer');
@@ -249,9 +241,9 @@ class WebSocketConnection extends EventEmitter {
         const items: T[] = [];
         let idx = 0;
         while (idx < raw.length) {
-            const it = new ctor(raw, idx);
-            items.push(it);
-            idx += it.data_length();
+            const event = new ctorType(raw, idx);
+            items.push(event);
+            idx += event.data_length();
         }
         return items;
     }
@@ -269,7 +261,7 @@ class WebSocketConnection extends EventEmitter {
         return this.sendCommand<FileMessage>(filename, false, timeoutMs);
     }
 
-    async sendCommand<T extends WebSocketMessage>(command: string, encrypt = false, timeoutMs: number = this.COMMAND_TIMEOUT): Promise<T> {
+    async sendCommand<T extends FileMessage | TextMessage>(command: string, encrypt = false, timeoutMs: number = this.COMMAND_TIMEOUT): Promise<T> {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
             throw new Error('Cannot send websocket command, readystate is not open');
         }
@@ -331,22 +323,22 @@ class WebSocketConnection extends EventEmitter {
         return i;
     }
 
-    override on<K extends keyof LoxoneClientEvents>(event: K, listener: LoxoneClientEvents[K]): this {
+    override on<K extends keyof WebSocketConnectionEvents>(event: K, listener: WebSocketConnectionEvents[K]): this {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return super.on(event as string, listener as (...args: any[]) => void);
     }
 
-    override once<K extends keyof LoxoneClientEvents>(event: K, listener: LoxoneClientEvents[K]): this {
+    override once<K extends keyof WebSocketConnectionEvents>(event: K, listener: WebSocketConnectionEvents[K]): this {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return super.once(event as string, listener as (...args: any[]) => void);
     }
 
-    override off<K extends keyof LoxoneClientEvents>(event: K, listener: LoxoneClientEvents[K]): this {
+    override off<K extends keyof WebSocketConnectionEvents>(event: K, listener: WebSocketConnectionEvents[K]): this {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return super.off(event as string, listener as (...args: any[]) => void);
     }
 
-    override emit<K extends keyof LoxoneClientEvents>(event: K, ...args: Parameters<LoxoneClientEvents[K]>): boolean {
+    override emit<K extends keyof WebSocketConnectionEvents>(event: K, ...args: Parameters<WebSocketConnectionEvents[K]>): boolean {
         return super.emit(event as string, ...args);
     }
 }

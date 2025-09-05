@@ -1,13 +1,11 @@
+import { GREY, YELLOW } from 'node-ansi-logger';
 import UUID from '../WebSocketMessages/UUID.js';
-import { LoxoneEvent } from './LoxoneEvent.js';
-import LoxoneEventName from './LoxoneEventName.js';
+import LoxoneEnrichableEvent from './LoxoneEnrichableEvent.js';
 
-class LoxoneTextEvent extends LoxoneEvent {
+class LoxoneTextEvent extends LoxoneEnrichableEvent {
     uuidIcon: UUID;
     textLength: number;
     text: string;
-    type = 'text';
-    static eventName: LoxoneEventName = 'event_table_text';
 
     constructor(binaryData: Buffer, offset: number) {
         super(binaryData, offset);
@@ -25,8 +23,13 @@ class LoxoneTextEvent extends LoxoneEvent {
         return (Math.floor((4 + this.textLength + this.uuid.data_length + this.uuidIcon.data_length - 1) / 4) + 1) * 4;
     }
 
-    override eventName(): LoxoneEventName {
-        return LoxoneTextEvent.eventName;
+    override toPath(): string {
+        const control = this.control?.parent ? `${this.control.parent.name}${GREY}/${YELLOW}${this.control.name}` : this.control?.name;
+        return this.isEnriched ? `${YELLOW}${this.room?.name}${GREY}/${YELLOW}${control}${GREY}/${YELLOW}${this.state?.name}${GREY}` : this.uuid.stringValue;
+    }
+
+    override toString(): string {
+        return `${this.toPath()} = ${YELLOW}${this.text}`;
     }
 }
 

@@ -1,9 +1,7 @@
 import UUID from '../WebSocketMessages/UUID.js';
 import { LoxoneEvent } from './LoxoneEvent.js';
-import LoxoneEventName from './LoxoneEventName.js';
 
 class LoxoneDayTimerEvent extends LoxoneEvent {
-    static eventName: LoxoneEventName = 'event_table_day_timer';
     defValue: number;
     entries: number;
     entry: { mode: number; from: number; to: number; needActivate: number; value: number }[];
@@ -37,8 +35,8 @@ class LoxoneDayTimerEvent extends LoxoneEvent {
         return this.uuid.data_length + 8 + 4 + this.entries * 24;
     }
 
-    override eventName(): LoxoneEventName {
-        return LoxoneDayTimerEvent.eventName;
+    override toPath(): string {
+        return this.uuid.stringValue;
     }
 }
 

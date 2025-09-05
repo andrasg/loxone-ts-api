@@ -1,7 +1,6 @@
 import WebSocket from 'ws';
-import WebSocketMessage from './WebSocketMessage.js';
 
-class FileMessage extends WebSocketMessage {
+class FileMessage {
     filename: string;
     type: 'json' | 'text' | 'binary';
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -9,8 +8,6 @@ class FileMessage extends WebSocketMessage {
     length: number;
 
     constructor(message: WebSocket.RawData, isBinary: boolean, filename: string) {
-        super();
-
         this.filename = filename;
 
         if (!isBinary) {

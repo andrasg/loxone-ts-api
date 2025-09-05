@@ -1,5 +1,3 @@
-import WebSocketMessage from './WebSocketMessage.js';
-
 /**
  * Represents the packed WebSocket binary header (WsBinHdr) from the C struct:
  *
@@ -13,7 +11,7 @@ import WebSocketMessage from './WebSocketMessage.js';
  *
  * This class can parse the header from a Buffer and serialize it back.
  */
-class WsBinHdr extends WebSocketMessage {
+class WsBinHdr {
     static readonly SIZE = 8; // total bytes in the packed struct
 
     cBinType: number; // 1 byte
@@ -23,7 +21,6 @@ class WsBinHdr extends WebSocketMessage {
     nLen: number; // 4 bytes (uint32 little-endian)
 
     constructor(cBinType = 0x03, cIdentifier = 0, cInfo = 0, cReserved = 0, nLen = 0) {
-        super();
         this.cBinType = cBinType;
         this.cIdentifier = cIdentifier;
         this.cInfo = cInfo;

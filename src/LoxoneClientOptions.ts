@@ -8,11 +8,13 @@ class LoxoneClientOptions {
     public autoReconnectEnabled: boolean;
     public keepAliveEnabled: boolean;
     public messageLogEnabled: boolean;
+    public logAllEvents: boolean;
 
     constructor(options: Partial<LoxoneClientOptions> = {}) {
         this.autoReconnectEnabled = options.autoReconnectEnabled ?? true;
         this.keepAliveEnabled = options.keepAliveEnabled ?? true;
         this.messageLogEnabled = options.messageLogEnabled ?? true;
+        this.logAllEvents = options.logAllEvents ?? false;
     }
 }
 
