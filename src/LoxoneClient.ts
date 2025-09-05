@@ -25,6 +25,7 @@ class LoxoneClient extends EventEmitter {
     state: LoxoneClientState = LoxoneClientState.disconnected;
     autoReconnect: AutoReconnect;
     log = new AnsiLogger({ logName: LoxoneClient.name, logTimestampFormat: TimestampFormat.TIME_MILLIS, logLevel: LogLevel.INFO });
+    private uuidWatchlist = new Set<string>();
 
     /**
      * A wrapper class for communicating with and controlling a Loxone Miniserver
@@ -297,17 +298,48 @@ class LoxoneClient extends EventEmitter {
         }
 
         this.connection.on('event_table_values', (eventTable: LoxoneValueEvent[]) => {
+            if (this.uuidWatchlist.size > 0) {
+                eventTable = eventTable.filter((event) => this.uuidWatchlist.has(event.uuid.toString()));
+            }
             eventTable.forEach((event) => {
                 this.emit('event_value', event);
             });
         });
         this.connection.on('event_table_text', (eventTable: LoxoneTextEvent[]) => {
+            if (this.uuidWatchlist.size > 0) {
+                eventTable = eventTable.filter((event) => this.uuidWatchlist.has(event.uuid.toString()));
+            }
             eventTable.forEach((event) => {
                 this.emit('event_text', event);
             });
         });
 
         this.wired = true;
+    }
+
+    /**
+     * Adds one or more UUIDs to the watch list. Value and text events will only be emitted for these UUIDs.
+     * If the watchlist is empty, all events will be emitted.
+     * @param uuid The UUID or array of UUIDs to add
+     */
+    addUuidToWatchList(uuid: string | string[]) {
+        if (Array.isArray(uuid)) {
+            uuid.forEach((id) => this.uuidWatchlist.add(id));
+        } else {
+            this.uuidWatchlist.add(uuid);
+        }
+    }
+
+    /**
+     * Removes one or more UUIDs from the watch list.
+     * @param uuid The UUID or array of UUIDs to remove
+     */
+    removeUuidFromWatchList(uuid: string | string[]) {
+        if (Array.isArray(uuid)) {
+            uuid.forEach((id) => this.uuidWatchlist.delete(id));
+        } else {
+            this.uuidWatchlist.delete(uuid);
+        }
     }
 
     private async checkVersion() {

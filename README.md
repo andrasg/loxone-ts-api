@@ -220,6 +220,31 @@ setLogLevel(level: LogLevel)
 |--|--|
 |level|Loglevel to set logging to. Uses the `node-ansi-logger` module|
 
+### `LoxoneClient.addUuidToWatchList()`
+
+Adds UUIDs to the watch list. Value and text update events will only be emitted for these UUIDs. If the watchlist is empty, all events will be emitted. 
+
+#### Parameters
+
+```ts
+addUuidToWatchList(uuid: string | string[])
+```
+|parameter|description|
+|--|--|
+|uuid|UUID string or array of strings to add to the watchlist|
+
+### `LoxoneClient.removeUuidFromWatchList()`
+
+Removes UUIDs from the watch list. 
+
+#### Parameters
+
+```ts
+removeUuidFromWatchList(uuid: string | string[])
+```
+|parameter|description|
+|--|--|
+|uuid|UUID string or array of strings to remove from the watchlist|
 
 ### `LoxoneClient.checkToken()`
 
@@ -320,7 +345,7 @@ Fires when the `LoxoneClient` changes its state. Possible states are:
   event_value: (event: LoxoneValueEvent) => void;
   event_text: (event: LoxoneTextEvent) => void;
 ```
-Fires when Loxone value or text update events are received.
+Fires when Loxone value or text update events are received. Events can be filtered using the watchlist functionality (`addUuidToWatchList()` and `removeUuidFromWatchList()`). If the watchlist contains any items, events `event_value` and `event_text` events are only emitted for the UUIDs that are on the watchlist. If the watchlist is empty, events are emitted for all value and text updates.
 
 ## Disclaimer
 
