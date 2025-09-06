@@ -306,7 +306,7 @@ class LoxoneClient extends EventEmitter {
             }
             if (!room) throw new Error(`Could not find room with UUID ${controlSection.room}`);
             // create control
-            const control = new Control(controlUuidString, controlSection.name, room);
+            const control = new Control(controlUuidString, controlSection.name, room, controlSection);
             this.controls.set(controlUuidString, control);
             for (const stateKey in controlSection.states) {
                 const stateUuidString = controlSection.states[stateKey];
@@ -318,7 +318,7 @@ class LoxoneClient extends EventEmitter {
             if (controlSection.subControls) {
                 for (const subControlUuidString in controlSection.subControls) {
                     const subControlSection = controlSection.subControls[subControlUuidString];
-                    const subControl = new Control(subControlUuidString, subControlSection.name, room, control);
+                    const subControl = new Control(subControlUuidString, subControlSection.name, room, subControlSection, control);
                     this.controls.set(subControlUuidString, subControl);
                     for (const stateKey in subControlSection.states) {
                         const stateUuidString = subControlSection.states[stateKey];

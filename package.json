@@ -1,6 +1,6 @@
 {
   "name": "loxone-ts-api",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "TypeScript client for the Loxone API",
   "type": "module",
   "main": "dist/LoxoneClient.js",
@@ -41,7 +41,6 @@
     "eslint-config-prettier": "^10.1.2",
     "eslint-plugin-n": "^17.17.0",
     "eslint-plugin-prettier": "^5.2.6",
-    "jest": "^29.7.0",
     "prettier": "^3.5.3",
     "ts-node": "^10.9.1",
     "typescript": "^5.5.0"
