@@ -15,8 +15,10 @@ class LoxoneValueEvent extends LoxoneEnrichableEvent {
     }
 
     override toPath(): string {
-        const control = this.control?.parent ? `${this.control.parent.name}${GREY}/${YELLOW}${this.control.name}` : this.control?.name;
-        return this.isEnriched ? `${YELLOW}${this.room?.name}${GREY}/${YELLOW}${control}${GREY}/${YELLOW}${this.state?.name}${GREY}` : this.uuid.stringValue;
+        const parentControl = this.state?.parentControl;
+        const controlString = parentControl ? `${parentControl.name}${GREY}/${YELLOW}${parentControl.name}` : 'unknown';
+        const roomString = parentControl?.room.name ?? 'unknown';
+        return this.isEnriched ? `${YELLOW}${roomString}${GREY}/${YELLOW}${controlString}${GREY}/${YELLOW}${this.state?.name}${GREY}` : this.uuid.stringValue;
     }
 
     override toString(): string {

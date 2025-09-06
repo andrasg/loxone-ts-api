@@ -1,18 +1,15 @@
 import UUID from '../WebSocketMessages/UUID.js';
 import Control from './Control.js';
-import Room from './Room.js';
 
 class State {
     uuid: UUID;
     name: string;
-    room: Room;
-    control: Control;
+    parentControl: Control;
 
-    constructor(uuid: UUID, name: string, room: Room, control: Control) {
+    constructor(uuid: UUID, name: string, parentControl: Control) {
         this.uuid = uuid;
         this.name = name;
-        this.room = room;
-        this.control = control;
+        this.parentControl = parentControl;
     }
 }
 

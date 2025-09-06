@@ -23,7 +23,7 @@ class LoxoneClient extends EventEmitter {
     readonly auth: Auth;
     private readonly host: string;
     private readonly COMMAND_TIMEOUT = 15000;
-    private readonly log = new AnsiLogger({ logName: LoxoneClient.name, logTimestampFormat: TimestampFormat.TIME_MILLIS, logLevel: LogLevel.INFO });
+    private readonly log: AnsiLogger;
     private readonly uuidWatchlist = new Set<string>();
     private isGen2 = false;
     private wired = false;
@@ -66,6 +66,7 @@ class LoxoneClient extends EventEmitter {
         super();
         const options = clientOptions instanceof LoxoneClientOptions ? clientOptions : new LoxoneClientOptions(clientOptions);
 
+        this.log = new AnsiLogger({ logName: LoxoneClient.name, logTimestampFormat: TimestampFormat.TIME_MILLIS, logLevel: options.logLevel });
         this.connection = new WebSocketConnection(this, this.log, host, this.COMMAND_TIMEOUT, options.messageLogEnabled);
         this.auth = new Auth(this.log, this.connection, host, username, password);
         this.host = host;
@@ -306,25 +307,27 @@ class LoxoneClient extends EventEmitter {
             }
             if (!room) throw new Error(`Could not find room with UUID ${controlSection.room}`);
             // create control
-            const control = new Control(controlUuidString, controlSection.name, room, controlSection);
+            const control = new Control(controlUuidString, controlSection, room);
             this.controls.set(controlUuidString, control);
             for (const stateKey in controlSection.states) {
                 const stateUuidString = controlSection.states[stateKey];
                 const stateUuid = UUID.fromString(stateUuidString);
-                const state = new State(stateUuid, stateKey, room, control);
+                const state = new State(stateUuid, stateKey, control);
                 this.states.set(stateUuidString, state);
+                control.addState(state);
             }
             // parse subcontrols, if any
             if (controlSection.subControls) {
                 for (const subControlUuidString in controlSection.subControls) {
                     const subControlSection = controlSection.subControls[subControlUuidString];
-                    const subControl = new Control(subControlUuidString, subControlSection.name, room, subControlSection, control);
+                    const subControl = new Control(subControlUuidString, subControlSection, room, control);
                     this.controls.set(subControlUuidString, subControl);
                     for (const stateKey in subControlSection.states) {
                         const stateUuidString = subControlSection.states[stateKey];
                         const stateUuid = UUID.fromString(stateUuidString);
-                        const state = new State(stateUuid, stateKey, room, subControl);
+                        const state = new State(stateUuid, stateKey, subControl);
                         this.states.set(stateUuidString, state);
+                        subControl.addState(state);
                     }
                 }
             }
@@ -445,8 +448,6 @@ class LoxoneClient extends EventEmitter {
         const state = this.states.get(event.uuid.stringValue);
         if (!state) return event;
 
-        event.room = state.room;
-        event.control = state.control;
         event.state = state;
 
         event.isEnriched = true;
