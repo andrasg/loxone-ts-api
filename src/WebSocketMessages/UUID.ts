@@ -1,4 +1,3 @@
-/* eslint-disable prettier/prettier */
 class UUID {
     data_length: number;
     private data1: Buffer;

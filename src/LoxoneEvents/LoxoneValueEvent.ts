@@ -2,6 +2,7 @@ import { GREY, YELLOW } from 'node-ansi-logger';
 import LoxoneEnrichableEvent from './LoxoneEnrichableEvent.js';
 
 class LoxoneValueEvent extends LoxoneEnrichableEvent {
+    typeName = LoxoneValueEvent.name;
     value: number;
 
     constructor(binaryData: Buffer, offset: number) {

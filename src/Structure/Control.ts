@@ -6,12 +6,14 @@ class Control {
     name: string;
     room: Room;
     parent: Control | undefined;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     structureSection: any;
     type: string;
     uuidAction: string;
     statesByName: Map<string, State> = new Map<string, State>();
     statesByUuid: Map<string, State> = new Map<string, State>();
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     constructor(uuid: string, structureSection: any, room: Room, parent: Control | undefined = undefined) {
         this.uuid = uuid;
         this.structureSection = structureSection;

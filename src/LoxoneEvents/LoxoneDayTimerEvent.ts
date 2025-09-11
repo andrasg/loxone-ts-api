@@ -2,6 +2,7 @@ import UUID from '../WebSocketMessages/UUID.js';
 import { LoxoneEvent } from './LoxoneEvent.js';
 
 class LoxoneDayTimerEvent extends LoxoneEvent {
+    typeName = LoxoneDayTimerEvent.name;
     defValue: number;
     entries: number;
     entry: { mode: number; from: number; to: number; needActivate: number; value: number }[];

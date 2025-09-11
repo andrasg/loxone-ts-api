@@ -406,6 +406,12 @@ class LoxoneClient extends EventEmitter {
             // enrich if we have the data
             if (this.isStructureFileParsed) {
                 event = this.enrichEvent(event);
+                if (this.options.maintainLatestEvents) {
+                    const state = this.states.get(event.uuid.stringValue);
+                    if (state) {
+                        state.latestEvent = event;
+                    }
+                }
             }
             if (this.options.messageLogEnabled && (this.options.logAllEvents || this.uuidWatchlist.size > 0)) {
                 this.log.debug(`Loxone event: ${event.toString()}`);

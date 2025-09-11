@@ -3,6 +3,7 @@ import UUID from '../WebSocketMessages/UUID.js';
 import LoxoneEnrichableEvent from './LoxoneEnrichableEvent.js';
 
 class LoxoneTextEvent extends LoxoneEnrichableEvent {
+    typeName = LoxoneTextEvent.name;
     uuidIcon: UUID;
     textLength: number;
     text: string;
@@ -31,7 +32,7 @@ class LoxoneTextEvent extends LoxoneEnrichableEvent {
     }
 
     override toString(): string {
-        return `${this.toPath()} = ${YELLOW}${this.text}`;
+        return `${YELLOW}${this.toPath()}${GREY} = ${YELLOW}${this.text}`;
     }
 }
 

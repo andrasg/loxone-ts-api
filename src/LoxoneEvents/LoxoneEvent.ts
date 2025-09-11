@@ -3,6 +3,7 @@ import UUID from '../WebSocketMessages/UUID.js';
 abstract class LoxoneEvent {
     uuid: UUID;
     date: Date;
+    abstract typeName: string;
 
     constructor(binaryData: Buffer, offset: number) {
         this.uuid = new UUID(binaryData, offset);

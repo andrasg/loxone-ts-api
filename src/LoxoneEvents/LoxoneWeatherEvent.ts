@@ -2,6 +2,7 @@ import UUID from '../WebSocketMessages/UUID.js';
 import { LoxoneEvent } from './LoxoneEvent.js';
 
 class LoxoneWeatherEvent extends LoxoneEvent {
+    typeName = LoxoneWeatherEvent.name;
     lastUpdate: number;
     entries: number;
     entry: {
