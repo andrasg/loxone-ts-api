@@ -10,6 +10,7 @@ class Control {
     structureSection: any;
     type: string;
     uuidAction: string;
+    states: Set<State> = new Set<State>();
     statesByName: Map<string, State> = new Map<string, State>();
     statesByUuid: Map<string, State> = new Map<string, State>();
 
@@ -26,6 +27,7 @@ class Control {
     }
 
     addState(state: State) {
+        this.states.add(state);
         this.statesByName.set(state.name, state);
         this.statesByUuid.set(state.uuid.stringValue, state);
     }
