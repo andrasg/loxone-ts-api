@@ -1,7 +1,42 @@
 # loxone-ts-api
-A Node module written in TypeScript allowing communication with Loxone Miniservers. Communication is done using http and WebSockets.
+A Node module written in TypeScript for facilitating communication with Loxone Miniservers. Communication is done using http and WebSockets.
 
-Currently only implemented http/ws communication to enable support for Gen.1 and Gen.2 Miniservers. https/wss communication not supported, but planned.
+Currently only implemented http/ws communication to enable support for Gen.1 and Gen.2 Miniservers. https/wss communication currently not supported, but planned.
+
+## Key featrues
+
+- Connects to the Loxone Miniserver via WebSocket
+  - Support for both Gen.1 and Gen.2 Miniservers
+  - Support for token-based auth, token refresh and token invalidation
+  - Supports automatic reconnect
+  - Automatically maintains connection upon disconnect or error
+- Event emitting
+  - emits events on key connection events
+  - emits events for message received
+  - ability to filter events to specific UUIDs
+- Loxone structure file parsing
+  - Ability to read and parse structure file
+  - Provides rich TypeScript classes representing Loxone rooms, controls and states
+  - Supplies rich event context for each event (value or text update)
+- Control any Loxone control
+  - Supports websocket-based control of any Loxone control
+- Nerdy stuff
+  - Fully typed TypeScript objects, avoiding the `any` type
+  - Implemented with async/await - code waits for async websocket response message before returning
+  - This package is used as the foundation of `matterbridge-loxone`
+
+### Structure file parsing
+
+After calling `LoxoneClient.parseStructureFile()`, the client will read the `LoxAPP3.json` and parse all rooms, their available controls and states associated. These can be read on the client object through the `rooms`, `controls` and `states` collections.
+It will also start enriching the received events with the associates `State` object that contains details about the state, its associated control and the room the control is in.
+
+### Watchlist
+
+By default the client will emit all events received via websocket. You can add status UUIDs to the watchlist by calling `LoxoneClient.addUuidToWatchList(uuid)`. Upon adding items to the watchlist, the client will only log and emit events received for statuses associated with the watched UUIDs.
+
+### Error handling
+
+The client tries to maintain the connection with the Miniserver even when network interruptions occur. Errors in command calls should not make the client crash.
 
 ## Requirements
 
@@ -50,7 +85,12 @@ await client.control("90f7abe3-8772-476d-b1dd-a5c1c4cf1ed9", "on");
 
 // subscribe to Loxone value updates
 client.on('event_value', (event) => {
-    log.info(`Received value event for ${event.uuid}, value=${event.value}`);
+    log.info(`Received value event: ${event.uuid.stringValue}`);
+    log.info(`  Room: ${event.state?.parentControl?.room?.name}`);
+    log.info(`  Control: ${event.state?.parentControl?.name}`);
+    log.info(`  State: ${event.state?.name}`);
+    log.info(`  Event path: ${event.toPath()}`);
+    log.info(`  Full event: ${event.toString()}`);
 });
 
 // initiates streaming of events
@@ -58,6 +98,20 @@ await client.enablesUpdates();
 
 // disconnects and kills token
 await client.disconnect(); 
+```
+
+This will yield a log output similar to:
+
+```
+...
+[09:04:59.568] [LoxoneClient] Loxone event: Not Assigned/Control/Subcontrol/total = 2446.4848200150127
+[09:04:59.568] [workbench] Received value event: 1cc4333c-02c9-60ec-05ff6d4c46418939
+[09:04:59.569] [workbench]   Room: Not Assigned
+[09:04:59.569] [workbench]   Control: Control/Subcontrol
+[09:04:59.569] [workbench]   State: total
+[09:04:59.570] [workbench]   Event path: Not Assigned/Control/Subcontrol/total
+[09:04:59.570] [workbench]   Full event: Not Assigned/Control/Subcontrol/total = 2446.4848200150127
+...
 ```
 
 ## API surface
@@ -86,6 +140,7 @@ Key entrypoint to the module.
 |clientOptions.keepAliveEnabled|optional parameter to override the default behavior of enabling a 15 second keepalive
 |clientOptions.messageLogEnabled|optional parameter to override the default behavior of enabling a logging of messages and responses
 |clientOptions.logAllEvents|optional parameter to log all value and text update events to the console
+|clientOptions.maintainLatestEvents|optional paraneter to override the default behavior of maintaining the latest event for each control|
 
 Instantiating a `LoxoneClient` instance does not trigger any network communication.
 
@@ -98,7 +153,7 @@ Goes through the following sequence
 1. Checks the Loxone Miniserver generation and firmware version 
 1. Connects the WebSocket connection
 1. Performs key exchange and authentication, and schedules automatic token refresh
-1. Enables keepalive
+1. Enables keepalive (unless disabled by `clientOptions.keepAliveEnabled`)
 
 #### Parameters
 
@@ -137,7 +192,7 @@ async getStructureFile()
 
 ### `LoxoneClient.parseStructureFile()`
 
-Parses the Loxone structure file (`LoxAPP3.json`). After calling this method, event updates will contain enriched information about the room, control and states.
+Parses the Loxone structure file (`LoxAPP3.json`). After calling this method, event updates will contain enriched information about the room, control and states. Each `State` of all `Control`s will also start remembering the latest event received (unless disabled by `clientOptions.maintainLatestEvents`)
 
 #### Parameters
 
