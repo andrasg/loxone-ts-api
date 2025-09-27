@@ -9,6 +9,7 @@ class AutoReconnect {
     client: LoxoneClient;
     log: AnsiLogger;
     reconnectResolve: undefined | ((value: boolean | PromiseLike<boolean>) => void);
+    reconnectDelayMs = 1000;
 
     constructor(client: LoxoneClient, log: AnsiLogger, autoReconnectEnabled: boolean) {
         this.autoReconnectEnabled = autoReconnectEnabled;
@@ -24,7 +25,8 @@ class AutoReconnect {
 
         // run a cancelable loop that attempts to reconnect every 30s
         while (this.autoReconnectEnabled && this.autoReconnectingInProgress) {
-            this.log.info('Waiting 30 seconds before reconnecting');
+            const delay = this.getNextReconnectDelay();
+            this.log.info(`Waiting ${delay / 1000} seconds before reconnecting`);
 
             // allow aborting
             const shouldReturn = await new Promise<boolean>((resolve) => {
@@ -33,7 +35,7 @@ class AutoReconnect {
                     this.reconnectTimeout = undefined;
                     this.reconnectResolve = undefined;
                     resolve(false);
-                }, 30000);
+                }, delay);
             });
             if (shouldReturn) return;
 
@@ -47,8 +49,16 @@ class AutoReconnect {
         }
     }
 
+    private getNextReconnectDelay() {
+        const delay = this.reconnectDelayMs;
+        this.reconnectDelayMs = Math.min(this.reconnectDelayMs * 2, 30000);
+        return delay;
+    }
+
     stopAutoReconnect() {
         this.autoReconnectingInProgress = false;
+        // reset delay
+        this.reconnectDelayMs = 1000;
 
         if (this.reconnectTimeout) {
             clearTimeout(this.reconnectTimeout);

@@ -30,6 +30,7 @@ class LoxoneClient extends EventEmitter {
     private _state: LoxoneClientState = LoxoneClientState.disconnected;
     private isStructureFileParsed = false;
     private autoReconnect: AutoReconnect;
+    private enableUpdatesRequested = false;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     public structureFile: any = undefined;
@@ -113,9 +114,18 @@ class LoxoneClient extends EventEmitter {
             if (this.options.keepAliveEnabled) {
                 this.connection?.enableKeepAlive();
             }
+
+            // 6. we're ready
             this.setState(LoxoneClientState.ready);
             this.log.info('LoxoneClient is ready to receive commands');
             this.emit('ready');
+
+            // 7. re-enable updates if this is a reconnect and they were enabled before
+            if (this.enableUpdatesRequested) {
+                this.log.info('Re-enabling binary updates after reconnect');
+                await this.enableUpdates();
+            }
+
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
             this.log.error(`Could not connect: ${error.message} - ${error.cause}`, error);
@@ -147,6 +157,7 @@ class LoxoneClient extends EventEmitter {
     async enableUpdates() {
         try {
             this.ensureReadyState('Not connected and authenticated, cannot enable updates');
+            this.enableUpdatesRequested = true;
             await this.connection.sendUnencryptedTextCommand('jdev/sps/enablebinstatusupdate');
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (error: any) {
