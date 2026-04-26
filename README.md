@@ -1,9 +1,7 @@
-# loxone-ts-api
+# @rudyberends/loxone-ts-api
 A Node module written in TypeScript for facilitating communication with Loxone Miniservers. Communication is done using http and WebSockets.
 
-Currently only implemented http/ws communication to enable support for Gen.1 and Gen.2 Miniservers. https/wss communication currently not supported, but planned.
-
-## Key featrues
+## Key features
 
 - Connects to the Loxone Miniserver via WebSocket
   - Support for both Gen.1 and Gen.2 Miniservers
@@ -50,7 +48,7 @@ Uses token authentication with the Miniserver. Automatically attempts token refr
 
 ```ts
 import { AnsiLogger, LogLevel, TimestampFormat } from "node-ansi-logger";
-import LoxoneClient from "./LoxoneClient.js";
+import LoxoneClient from "@rudyberends/loxone-ts-api";
 
 let log = new AnsiLogger({logName: "workbench", logTimestampFormat: TimestampFormat.TIME_MILLIS});
 
@@ -94,7 +92,7 @@ client.on('event_value', (event) => {
 });
 
 // initiates streaming of events
-await client.enablesUpdates(); 
+await client.enableUpdates();
 
 // disconnects and kills token
 await client.disconnect(); 
@@ -125,6 +123,7 @@ Key entrypoint to the module.
         host: string,
         username: string,
         password: string,
+        useTls: boolean,
         clientOptions: Partial<LoxoneClientOptions>
     )
 ```
@@ -136,6 +135,7 @@ Key entrypoint to the module.
 |host|IP address or hostname of the Loxone Miniserver|
 |username|username to use|
 |password|password for the user|
+|useTls|optional boolean to connect through HTTPS/WSS instead of HTTP/WS|
 |clientOptions.autoReconnectEnabled|optional parameter to override the default behavior of automatically reconnecting on failure/disconnection|
 |clientOptions.keepAliveEnabled|optional parameter to override the default behavior of enabling a 15 second keepalive
 |clientOptions.messageLogEnabled|optional parameter to override the default behavior of enabling a logging of messages and responses

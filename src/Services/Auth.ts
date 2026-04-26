@@ -8,6 +8,7 @@ class Auth {
     private password: string;
     private username: string;
     private host: string;
+    private useTls: boolean;
     private connection: WebSocketConnection;
     private publicKey: { key: string; padding: number } | undefined;
     private sessionKey: string | undefined;
@@ -18,12 +19,13 @@ class Auth {
     commandEncryption: CommandEncryption;
     log: AnsiLogger;
 
-    constructor(log: AnsiLogger, connection: WebSocketConnection, host: string, username: string, password: string) {
+    constructor(log: AnsiLogger, connection: WebSocketConnection, host: string, username: string, password: string, useTls: boolean) {
         this.log = log;
         this.connection = connection;
         this.host = host;
         this.username = username;
         this.password = password;
+        this.useTls = useTls;
 
         this.tokenHandler = new TokenHandler(this, log, this.connection, this.username, this.password);
         this.commandEncryption = new CommandEncryption(this);
@@ -66,7 +68,9 @@ class Auth {
     }
 
     private async getPublicKey() {
-        const response = await fetch('http://' + this.host + '/jdev/sys/getcertificate');
+        const protocol = this.useTls ? 'https' : 'http';
+        const url = `${protocol}://${this.host}/jdev/sys/getcertificate`;
+        const response = await fetch(url);
         this.parsePublicKey(await response.text());
     }
 

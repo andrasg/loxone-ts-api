@@ -1,8 +1,14 @@
 name: Publish to npm
 
 on:
-  release:
-    types: [created]
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish, without v prefix (for example 1.3.3 or 1.4.0-beta.0)'
+        required: true
 
 jobs:
   publish:
@@ -30,9 +36,11 @@ jobs:
       - name: Extract version from release
         id: get_version
         run: |
-          # Extract version from tag name (remove 'v' prefix if present)
-          VERSION=${GITHUB_REF#refs/tags/}
-          VERSION=${VERSION#v}
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Extracted version: $VERSION"
 
@@ -52,25 +60,19 @@ jobs:
         id: determine_dist_tag
         run: |
           # Determine dist tag for npm publish.
-          # If the GitHub release is marked as prerelease, try to use the pre-release identifier
+          # If the version has a pre-release identifier, use it as dist-tag
           # (e.g. v1.2.3-alpha.1 => tag "alpha"). Otherwise use "latest".
-          # As a fallback for prerelease without a suffix use "next".
-          VERSION=${GITHUB_REF#refs/tags/}
-          VERSION=${VERSION#v}
+          VERSION="${{ steps.get_version.outputs.version }}"
 
-          if [ "${{ github.event.release.prerelease }}" = "true" ]; then
-            if [[ "$VERSION" == *"-"* ]]; then
-              PR=${VERSION#*-}
-              LABEL=${PR%%.*}
-              echo "dist_tag=$LABEL" >> $GITHUB_OUTPUT
-            else
-              echo "dist_tag=next" >> $GITHUB_OUTPUT
-            fi
+          if [[ "$VERSION" == *"-"* ]]; then
+            PR=${VERSION#*-}
+            LABEL=${PR%%.*}
+            echo "dist_tag=$LABEL" >> $GITHUB_OUTPUT
           else
             echo "dist_tag=latest" >> $GITHUB_OUTPUT
           fi
 
       - name: Publish to npm
-        run: npm publish --tag ${{ steps.determine_dist_tag.outputs.dist_tag }}
+        run: npm publish --access public --tag ${{ steps.determine_dist_tag.outputs.dist_tag }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

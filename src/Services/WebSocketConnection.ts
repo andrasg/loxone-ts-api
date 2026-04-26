@@ -30,6 +30,7 @@ class WebSocketConnection extends EventEmitter {
     private nextExpectedMessageType: MessageType = MessageType.HEADER;
     private ws: WebSocket | undefined;
     private host: string;
+    private useTls: boolean;
     private loxoneClient: LoxoneClient;
 
     // keepalive handling
@@ -47,17 +48,20 @@ class WebSocketConnection extends EventEmitter {
     private log: AnsiLogger;
     private messageLog: boolean;
 
-    constructor(loxoneClient: LoxoneClient, log: AnsiLogger, host: string, commandTimeout: number, messageLog: boolean) {
+    constructor(loxoneClient: LoxoneClient, log: AnsiLogger, host: string, useTls: boolean, commandTimeout: number, messageLog: boolean) {
         super();
         this.loxoneClient = loxoneClient;
         this.host = host;
+        this.useTls = useTls;
         this.COMMAND_TIMEOUT = commandTimeout;
         this.log = log;
         this.messageLog = messageLog;
     }
 
     async connect() {
-        this.ws = new WebSocket(`ws://${this.host}/ws/rfc6455`, 'remotecontrol');
+        const protocol = this.useTls ? 'wss' : 'ws';
+        const url = `${protocol}://${this.host}/ws/rfc6455`;
+        this.ws = new WebSocket(url, 'remotecontrol');
         this.ws.on('open', () => {
             this.emit('connected');
         });

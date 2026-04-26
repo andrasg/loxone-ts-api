@@ -32,6 +32,9 @@ class LoxoneClient extends EventEmitter {
     private autoReconnect: AutoReconnect;
     private enableUpdatesRequested = false;
 
+    /** Whether this client uses TLS (HTTPS & WSS). Default: false. */
+    private readonly useTls: boolean;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     public structureFile: any = undefined;
     public options: LoxoneClientOptions;
@@ -61,18 +64,39 @@ class LoxoneClient extends EventEmitter {
      * @param host Loxone hostname or IP
      * @param username Username to be used
      * @param password Password for the user
+     * @param useTls Either `true`/`false` to enable TLS. If an **object** is passed here
+     *               it will be treated as `clientOptions` and TLS will default to `false`
+     *               (for backward compatibility).
+     * @param clientOptions Optional configuration for the client.
      * @param keepAliveEnabed (optional) whether to enable keepalive
      */
-    constructor(host: string, username: string, password: string, clientOptions: Partial<LoxoneClientOptions> | LoxoneClientOptions = new LoxoneClientOptions()) {
+    constructor(
+        host: string,
+        username: string,
+        password: string,
+        useTls: boolean | Partial<LoxoneClientOptions> | LoxoneClientOptions = false,
+        clientOptions: Partial<LoxoneClientOptions> | LoxoneClientOptions = new LoxoneClientOptions(),
+    ) {
         super();
+
+        // If caller passed options object in the 4th slot
+        if (typeof useTls === 'object' && useTls !== null) {
+            clientOptions = useTls; // shift it into clientOptions
+            useTls = false; // default TLS to false
+        }
+
         const options = clientOptions instanceof LoxoneClientOptions ? clientOptions : new LoxoneClientOptions(clientOptions);
 
+        this.useTls = !!useTls;
+        this.options = options;
+
         this.log = new AnsiLogger({ logName: LoxoneClient.name, logTimestampFormat: TimestampFormat.TIME_MILLIS, logLevel: options.logLevel });
-        this.connection = new WebSocketConnection(this, this.log, host, this.COMMAND_TIMEOUT, options.messageLogEnabled);
-        this.auth = new Auth(this.log, this.connection, host, username, password);
         this.host = host;
         this.autoReconnect = new AutoReconnect(this, this.log, options.autoReconnectEnabled);
-        this.options = options;
+        this.connection = new WebSocketConnection(this, this.log, host, this.useTls, this.COMMAND_TIMEOUT, options.messageLogEnabled);
+        this.auth = new Auth(this.log, this.connection, host, username, password, this.useTls);
+
+        this.log.info(`${YELLOW}LoxoneClient${nf} initialized for ${host} (TLS: ${this.useTls})`);
 
         this.rooms.set(UUID.empty.stringValue, new Room(UUID.empty, '<N/A>'));
     }
@@ -99,8 +123,8 @@ class LoxoneClient extends EventEmitter {
             await this.checkVersion();
 
             // 3. create websocket connection and connect
-            await this.connection?.connect();
-            this.log.info('Connected');
+            await this.connection.connect();
+            this.log.info(`Connected (${this.useTls ? 'WSS/TLS' : 'WS'})`);
             this.setState(LoxoneClientState.connected);
 
             // 4. perform auth
@@ -473,7 +497,9 @@ class LoxoneClient extends EventEmitter {
     }
 
     private async checkVersion() {
-        const response = await fetch('http://' + this.host + '/jdev/cfg/apiKey');
+        this.log.info('Checking Loxone Miniserver version...');
+        const protocol = this.useTls ? 'https' : 'http';
+        const response = await fetch(`${protocol}://${this.host}/jdev/cfg/apiKey`);
         if (response.status === 503) {
             throw new Error('Miniserver is rebooting');
         }
