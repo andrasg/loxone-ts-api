@@ -94,7 +94,7 @@ client.on('event_value', (event) => {
 });
 
 // initiates streaming of events
-await client.enablesUpdates(); 
+await client.enableUpdates(); 
 
 // disconnects and kills token
 await client.disconnect(); 
