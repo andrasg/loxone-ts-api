@@ -2,7 +2,11 @@ name: Publish to npm
 
 on:
   release:
-    types: [created]
+    types: [published]
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   publish:
@@ -15,23 +19,15 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
+          node-version: '22.x'
           registry-url: 'https://registry.npmjs.org'
-
-      - name: Clean cache
-        run: npm cache clean --force
-  
-      - name: Verify Node.js version
-        run: node -v
-
-      - name: Verify Npm version
-        run: npm -v
+          cache: npm
             
       - name: Extract version from release
         id: get_version
         run: |
-          # Extract version from tag name (remove 'v' prefix if present)
-          VERSION=${GITHUB_REF#refs/tags/}
+          # Extract version from release tag name (remove 'v' prefix if present)
+          VERSION="${{ github.event.release.tag_name }}"
           VERSION=${VERSION#v}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Extracted version: $VERSION"
@@ -55,7 +51,7 @@ jobs:
           # If the GitHub release is marked as prerelease, try to use the pre-release identifier
           # (e.g. v1.2.3-alpha.1 => tag "alpha"). Otherwise use "latest".
           # As a fallback for prerelease without a suffix use "next".
-          VERSION=${GITHUB_REF#refs/tags/}
+          VERSION="${{ github.event.release.tag_name }}"
           VERSION=${VERSION#v}
 
           if [ "${{ github.event.release.prerelease }}" = "true" ]; then
@@ -71,6 +67,4 @@ jobs:
           fi
 
       - name: Publish to npm
-        run: npm publish --tag ${{ steps.determine_dist_tag.outputs.dist_tag }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --tag ${{ steps.determine_dist_tag.outputs.dist_tag }}
