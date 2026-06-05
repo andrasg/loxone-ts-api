@@ -12,6 +12,9 @@ on:
           description: 'Set to "true" to skip CI when running manually'
           required: false
           default: 'false'
+
+permissions:
+  contents: read
     
 concurrency:
   group: ${{ github.ref }}
@@ -44,15 +47,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-
-      - name: Clean cache
-        run: npm cache clean --force
-    
-      - name: Verify Node.js version
-        run: node -v
-
-      - name: Verify Npm version
-        run: npm -v
+          cache: npm
             
       - name: Install dependencies
         run: npm ci
