@@ -3,6 +3,16 @@ name: Publish to npm
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Release tag to publish (for example: v1.3.3)
+        required: true
+      prerelease:
+        description: Publish with prerelease dist-tag logic
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   id-token: write
@@ -14,23 +24,37 @@ jobs:
   
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.release_tag) || format('refs/tags/{0}', github.event.release.tag_name) }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '22.x'
+          node-version: '24.x'
           registry-url: 'https://registry.npmjs.org'
           cache: npm
             
-      - name: Extract version from release
+      - name: Resolve release metadata
         id: get_version
         run: |
-          # Extract version from release tag name (remove 'v' prefix if present)
-          VERSION="${{ github.event.release.tag_name }}"
+          # Resolve tag from release event or manual dispatch input.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG_NAME="${{ inputs.release_tag }}"
+            IS_PRERELEASE="${{ inputs.prerelease }}"
+          else
+            TAG_NAME="${{ github.event.release.tag_name }}"
+            IS_PRERELEASE="${{ github.event.release.prerelease }}"
+          fi
+
+          VERSION="$TAG_NAME"
           VERSION=${VERSION#v}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Extracted version: $VERSION"
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+          echo "Resolved tag: $TAG_NAME"
+          echo "Resolved version: $VERSION"
+          echo "Prerelease: $IS_PRERELEASE"
 
       - name: Update package.json version
         run: |
@@ -51,10 +75,9 @@ jobs:
           # If the GitHub release is marked as prerelease, try to use the pre-release identifier
           # (e.g. v1.2.3-alpha.1 => tag "alpha"). Otherwise use "latest".
           # As a fallback for prerelease without a suffix use "next".
-          VERSION="${{ github.event.release.tag_name }}"
-          VERSION=${VERSION#v}
+          VERSION="${{ steps.get_version.outputs.version }}"
 
-          if [ "${{ github.event.release.prerelease }}" = "true" ]; then
+          if [ "${{ steps.get_version.outputs.is_prerelease }}" = "true" ]; then
             if [[ "$VERSION" == *"-"* ]]; then
               PR=${VERSION#*-}
               LABEL=${PR%%.*}
