@@ -18,6 +18,8 @@ import WebSocketConnectionEvents from './Services/WebSocketConnectionEvents.js';
 import LoxoneEnrichableEvent from './LoxoneEvents/LoxoneEnrichableEvent.js';
 import UUID from './WebSocketMessages/UUID.js';
 
+type LogLevelName = 'none' | 'fatal' | 'error' | 'warn' | 'notice' | 'info' | 'debug';
+
 class LoxoneClient extends EventEmitter {
     private readonly connection: WebSocketConnection;
     readonly auth: Auth;
@@ -353,7 +355,26 @@ class LoxoneClient extends EventEmitter {
      * Sets the log level for the client.
      * @param level The log level to set
      */
-    setLogLevel(level: LogLevel) {
+    setLogLevel(level: LogLevel | LogLevelName) {
+        if (typeof level === 'string') {
+            const normalizedLevel = level.trim().toUpperCase();
+            const logLevelMap: Record<string, LogLevel> = {
+                NONE: LogLevel.NONE,
+                NOTICE: LogLevel.NOTICE,
+                DEBUG: LogLevel.DEBUG,
+                INFO: LogLevel.INFO,
+                WARN: LogLevel.WARN,
+                ERROR: LogLevel.ERROR,
+                FATAL: LogLevel.FATAL,
+            };
+            const mappedLevel = logLevelMap[normalizedLevel];
+            if (mappedLevel === undefined) {
+                throw new Error(`Invalid log level: ${level}`);
+            }
+            this.log.logLevel = mappedLevel;
+            return;
+        }
+
         this.log.logLevel = level;
     }
 
