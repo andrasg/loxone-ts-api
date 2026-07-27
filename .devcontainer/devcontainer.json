@@ -3,7 +3,7 @@
 {
 	"name": "Node.js & TypeScript",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
+	"image": "mcr.microsoft.com/devcontainers/typescript-node",
 
 	"containerEnv": {
 		"TZ": "Europe/Budapest"
@@ -23,12 +23,92 @@
 		"vscode": {
 			// Add the IDs of extensions you want installed when the container is created.
 			"extensions": [
-				"dbaeumer.vscode-eslint",
-				"rvest.vs-code-prettier-eslint"
-			]
+				"typescriptteam.native-preview",
+				"oxc.oxc-vscode"
+			],
+			"settings": {
+				"eslint.enable": false,
+				"prettier.enable": false,
+				"oxc.enable": true,
+				"js/ts.experimental.useTsgo": true,
+				"js/ts.tsdk.promptToUseWorkspaceVersion": false,
+				"editor.tabSize": 2,
+				"editor.rulers": [180],
+				"editor.formatOnSave": false,
+				"editor.defaultFormatter": "oxc.oxc-vscode",
+				"[javascript]": {
+					"editor.defaultFormatter": "oxc.oxc-vscode"
+				},
+				"[typescript]": {
+					"editor.defaultFormatter": "oxc.oxc-vscode"
+				},
+				"[json]": {
+					"editor.defaultFormatter": "oxc.oxc-vscode"
+				},
+				"[jsonc]": {
+					"editor.defaultFormatter": "oxc.oxc-vscode"
+				},
+				"[markdown]": {
+					"editor.defaultFormatter": "oxc.oxc-vscode"
+				},
+				"editor.formatOnSaveMode": "file",
+				"editor.codeActionsOnSave": {
+					"source.format.oxc": "always",
+					"source.fixAll.oxc": "always"
+				},
+				"diffEditor.ignoreTrimWhitespace": false,
+				"files.eol": "\n",
+				"files.insertFinalNewline": true,
+				"files.trimFinalNewlines": true,
+				"files.trimTrailingWhitespace": true,
+				"files.watcherExclude": {
+					"**/build/**": true,
+					"**/.cache/**": true,
+					"**/coverage/**": true
+				},
+				"search.exclude": {
+					"**/node_modules": true,
+					"**/dist": true,
+					"**/build": true,
+					"**/.cache": true,
+					"**/coverage": true
+				},
+				"git.autofetch": true,
+				"git.autoRepositoryDetection": false,
+				// VS Code's Copilot Chat extension settings
+				"chat.useCustomizationsInParentRepositories": false,
+				"chat.instructionsFilesLocations": {
+					".github/instructions": true,
+					"~/.copilot/instructions": false
+				},
+				"chat.tools.terminal.autoApprove": {
+					"npx tsc": true,
+					"npx oxlint": true,
+					"npx oxfmt": true,
+					"npx vitest": true,
+					"npm run": true,
+					"npm run build": true,
+					"npm run typecheck": true,
+					"npm run lint": true,
+					"npm run format:check": true,
+					"npm run test": true,
+					"npm run test:coverage": true,
+					"npm run update-htmls": true,
+					"git status": true,
+					"git diff": true,
+					"git diff --check": true,
+					"git diff --stat": true,
+					"git log": true,
+					"git show": true,
+					"git branch -vv": true,
+					"git ls-files": true,
+					"git --no-pager diff --stat": true,
+					"git --no-pager diff --check": true
+				}
+			}
 		}
-	}
+	},
 
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
-	// "remoteUser": "root"
+	"remoteUser": "node"
 }

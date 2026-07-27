@@ -1,556 +1,635 @@
-import EventEmitter from 'node:events';
-import LoxoneClientEvents from './LoxoneClientEvents.js';
-import FileMessage from './WebSocketMessages/FileMessage.js';
-import WebSocketConnection from './Services/WebSocketConnection.js';
-import Auth from './Services/Auth.js';
-import TextMessage from './WebSocketMessages/TextMessage.js';
-import LoxoneClientState from './LoxoneClientState.js';
-import AutoReconnect from './Services/AutoReconnect.js';
-import { AnsiLogger, LogLevel, nf, TimestampFormat, YELLOW } from 'node-ansi-logger';
-import { exit } from 'node:process';
-import LoxoneValueEvent from './LoxoneEvents/LoxoneValueEvent.js';
-import LoxoneTextEvent from './LoxoneEvents/LoxoneTextEvent.js';
-import { LoxoneClientOptions } from './LoxoneClientOptions.js';
-import Control from './Structure/Control.js';
-import State from './Structure/State.js';
-import Room from './Structure/Room.js';
-import WebSocketConnectionEvents from './Services/WebSocketConnectionEvents.js';
-import LoxoneEnrichableEvent from './LoxoneEvents/LoxoneEnrichableEvent.js';
-import UUID from './WebSocketMessages/UUID.js';
+import type LoxoneClientEvents from "./LoxoneClientEvents.js";
+import type FileMessage from "./WebSocketMessages/FileMessage.js";
+import WebSocketConnection from "./Services/WebSocketConnection.js";
+import Auth from "./Services/Auth.js";
+import type TextMessage from "./WebSocketMessages/TextMessage.js";
+import LoxoneClientState from "./LoxoneClientState.js";
+import AutoReconnect from "./Services/AutoReconnect.js";
+import { AnsiLogger, LogLevel, nf, TimestampFormat, YELLOW } from "node-ansi-logger";
+import { exit } from "node:process";
+import LoxoneValueEvent from "./LoxoneEvents/LoxoneValueEvent.js";
+import LoxoneTextEvent from "./LoxoneEvents/LoxoneTextEvent.js";
+import { LoxoneClientOptions } from "./LoxoneClientOptions.js";
+import Control from "./Structure/Control.js";
+import State from "./Structure/State.js";
+import Room from "./Structure/Room.js";
+import LoxoneEnrichableEvent from "./LoxoneEvents/LoxoneEnrichableEvent.js";
+import UUID from "./WebSocketMessages/UUID.js";
+import LoxoneWeatherEvent from "./LoxoneEvents/LoxoneWeatherEvent.js";
+import LoxoneDayTimerEvent from "./LoxoneEvents/LoxoneDayTimerEvent.js";
+import type { LoxoneEvent } from "./LoxoneEvents/LoxoneEvent.js";
+import { EventEmitter } from "node:events";
 
-type LogLevelName = 'none' | 'fatal' | 'error' | 'warn' | 'notice' | 'info' | 'debug';
+type LogLevelName = "none" | "fatal" | "error" | "warn" | "notice" | "info" | "debug";
 
 class LoxoneClient extends EventEmitter {
-    private readonly connection: WebSocketConnection;
-    readonly auth: Auth;
-    private readonly host: string;
-    private readonly COMMAND_TIMEOUT = 15000;
-    private readonly log: AnsiLogger;
-    private readonly uuidWatchlist = new Set<string>();
-    private isGen2 = false;
-    private wired = false;
-    private _state: LoxoneClientState = LoxoneClientState.disconnected;
-    private isStructureFileParsed = false;
-    private autoReconnect: AutoReconnect;
-    private enableUpdatesRequested = false;
+  private readonly connection: WebSocketConnection;
+  readonly auth: Auth;
+  private readonly host: string;
+  private readonly COMMAND_TIMEOUT = 15000;
+  private readonly log: AnsiLogger;
+  private readonly uuidWatchlist = new Set<string>();
+  private isGen2 = false;
+  private wired = false;
+  private _state: LoxoneClientState = LoxoneClientState.disconnected;
+  private isStructureFileParsed = false;
+  private autoReconnect: AutoReconnect;
+  private enableUpdatesRequested = false;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    public structureFile: any = undefined;
-    public options: LoxoneClientOptions;
+  // oxlint-disable-next-line typescript/no-explicit-any
+  public structureFile: any = undefined;
+  public options: LoxoneClientOptions;
 
-    /**
-     * Gets the current state of the Loxone client
-     * @returns The current state of the Loxone client
-     */
-    public get state(): LoxoneClientState {
-        return this._state;
+  /**
+   * Gets the current state of the Loxone client
+   * @returns {LoxoneClientState} The current state of the Loxone client
+   */
+  public get state(): LoxoneClientState {
+    return this._state;
+  }
+  /**
+   * A mapping of control UUIDs to Controls
+   */
+  public readonly controls = new Map<string, Control>();
+  /**
+   * A mapping of state UUIDs to States
+   */
+  public readonly states = new Map<string, State>();
+  /**
+   * A mapping of room UUIDs to Rooms
+   */
+  public readonly rooms = new Map<string, Room>();
+
+  /**
+   * A wrapper class for communicating with and controlling a Loxone Miniserver
+   * @param {string} host Loxone hostname or IP
+   * @param {string} username Username to be used
+   * @param {string} password Password for the user
+   * @param {Partial<LoxoneClientOptions> | LoxoneClientOptions} clientOptions (optional) client options for configuring the Loxone client
+   */
+  constructor(
+    host: string,
+    username: string,
+    password: string,
+    clientOptions: Partial<LoxoneClientOptions> | LoxoneClientOptions = new LoxoneClientOptions(),
+  ) {
+    super();
+    const options =
+      clientOptions instanceof LoxoneClientOptions
+        ? clientOptions
+        : new LoxoneClientOptions(clientOptions);
+
+    this.log = new AnsiLogger({
+      logName: LoxoneClient.name,
+      logTimestampFormat: TimestampFormat.TIME_MILLIS,
+      logLevel: options.logLevel,
+    });
+    this.connection = new WebSocketConnection(
+      this,
+      this.log,
+      host,
+      this.COMMAND_TIMEOUT,
+      options.messageLogEnabled,
+    );
+    this.auth = new Auth(this.log, this.connection, host, username, password, options);
+    this.host = host;
+    this.autoReconnect = new AutoReconnect(this, this.log, options.autoReconnectEnabled);
+    this.options = options;
+
+    this.rooms.set(UUID.empty.stringValue, new Room(UUID.empty, "<N/A>"));
+  }
+
+  /**
+   * Initiates connection and triggers authentication
+   * @param {string} existingToken (optional) previously issued token to authenticate with
+   */
+  async connect(existingToken?: string): Promise<void> {
+    if (this._state !== LoxoneClientState.disconnected && this._state !== LoxoneClientState.error) {
+      this.log.warn("Not in disconnected or error state, ignoring connect call");
+      return;
     }
-    /**
-     * A mapping of control UUIDs to Controls
-     */
-    public readonly controls = new Map<string, Control>();
-    /**
-     * A mapping of state UUIDs to States
-     */
-    public readonly states = new Map<string, State>();
-    /**
-     * A mapping of room UUIDs to Rooms
-     */
-    public readonly rooms = new Map<string, Room>();
-
-    /**
-     * A wrapper class for communicating with and controlling a Loxone Miniserver
-     * @param host Loxone hostname or IP
-     * @param username Username to be used
-     * @param password Password for the user
-     * @param clientOptions (optional) client options for configuring the Loxone client
-     */
-    constructor(host: string, username: string, password: string, clientOptions: Partial<LoxoneClientOptions> | LoxoneClientOptions = new LoxoneClientOptions()) {
-        super();
-        const options = clientOptions instanceof LoxoneClientOptions ? clientOptions : new LoxoneClientOptions(clientOptions);
-
-        this.log = new AnsiLogger({ logName: LoxoneClient.name, logTimestampFormat: TimestampFormat.TIME_MILLIS, logLevel: options.logLevel });
-        this.connection = new WebSocketConnection(this, this.log, host, this.COMMAND_TIMEOUT, options.messageLogEnabled);
-        this.auth = new Auth(this.log, this.connection, host, username, password, options);
-        this.host = host;
-        this.autoReconnect = new AutoReconnect(this, this.log, options.autoReconnectEnabled);
-        this.options = options;
-
-        this.rooms.set(UUID.empty.stringValue, new Room(UUID.empty, '<N/A>'));
-    }
-
-    /**
-     * Initiates connection and triggers authentication
-     */
-    async connect(existingToken?: string) {
-        if (this._state !== LoxoneClientState.disconnected && this._state !== LoxoneClientState.error) {
-            this.log.warn('Not in disconnected or error state, ignoring connect call');
-            return;
-        }
-        if (this.autoReconnect.autoReconnectingInProgress) {
-            this.setState(LoxoneClientState.reconnecting);
-        } else {
-            this.setState(LoxoneClientState.connecting);
-        }
-
-        try {
-            // 1. pass through events
-            this.wireUpEvents();
-
-            // 2. check version and https
-            await this.checkVersion();
-
-            // 3. create websocket connection and connect
-            await this.connection?.connect();
-            this.log.info('Connected');
-            this.setState(LoxoneClientState.connected);
-
-            // 4. perform auth
-            this.setState(LoxoneClientState.authenticating);
-            await this.auth.authenticate(existingToken);
-            this.setState(LoxoneClientState.authenticated);
-            this.log.info('Authenticated');
-            this.emit('authenticated');
-
-            // 5. enable keep-alive
-            if (this.options.keepAliveEnabled) {
-                this.connection?.enableKeepAlive();
-            }
-
-            // 6. we're ready
-            this.setState(LoxoneClientState.ready);
-            this.log.info('LoxoneClient is ready to receive commands');
-            this.emit('ready');
-
-            // 7. re-enable updates if this is a reconnect and they were enabled before
-            if (this.enableUpdatesRequested) {
-                this.log.info('Re-enabling binary updates after reconnect');
-                await this.enableUpdates();
-            }
-
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } catch (error: any) {
-            this.log.error(`Could not connect: ${error.message} - ${error.cause}`, error);
-            this.setState(LoxoneClientState.error);
-            await this.autoReconnect.startAutoReconnect(existingToken);
-        }
+    if (this.autoReconnect.autoReconnectingInProgress) {
+      this.setState(LoxoneClientState.reconnecting);
+    } else {
+      this.setState(LoxoneClientState.connecting);
     }
 
-    /**
-     * Gets the Loxone structure file
-     * @returns the Loxone LoxAPP3.json file
-     */
-    async getStructureFile() {
-        try {
-            const structureFileMessage = await this.sendFileCommand('data/LoxAPP3.json');
-            this.structureFile = structureFileMessage.data;
-            this.log.info(`Received structure file with last modified: ${this.structureFile.lastModified}`);
-            return this.structureFile;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } catch (error: any) {
-            this.log.error(`Could not get structure file: ${error.message} - ${error.cause}`, error);
-            throw new Error('Could not get structure file', { cause: error as Error });
-        }
+    try {
+      // 1. pass through events
+      this.wireUpEvents();
+
+      // 2. check version and https
+      await this.checkVersion();
+
+      // 3. create websocket connection and connect
+      await this.connection?.connect();
+      this.log.info("Connected");
+      this.setState(LoxoneClientState.connected);
+
+      // 4. perform auth
+      this.setState(LoxoneClientState.authenticating);
+      await this.auth.authenticate(existingToken);
+      this.setState(LoxoneClientState.authenticated);
+      this.log.info("Authenticated");
+      this.emit("authenticated");
+
+      // 5. enable keep-alive
+      if (this.options.keepAliveEnabled) {
+        this.connection?.enableKeepAlive();
+      }
+
+      // 6. we're ready
+      this.setState(LoxoneClientState.ready);
+      this.log.info("LoxoneClient is ready to receive commands");
+      this.emit("ready");
+
+      // 7. re-enable updates if this is a reconnect and they were enabled before
+      if (this.enableUpdatesRequested) {
+        this.log.info("Re-enabling binary updates after reconnect");
+        await this.enableUpdates();
+      }
+
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } catch (error: any) {
+      this.log.error(`Could not connect: ${error.message} - ${error.cause}`, error);
+      this.setState(LoxoneClientState.error);
+      await this.autoReconnect.startAutoReconnect(existingToken);
+    }
+  }
+
+  /**
+   * Gets the Loxone structure file
+   * @returns {Promise<any>} the Loxone LoxAPP3.json file
+   */
+  // oxlint-disable-next-line typescript/no-explicit-any
+  async getStructureFile(): Promise<any> {
+    try {
+      const structureFileMessage = await this.sendFileCommand("data/LoxAPP3.json");
+      this.structureFile = structureFileMessage.data;
+      this.log.info(
+        `Received structure file with last modified: ${this.structureFile.lastModified}`,
+      );
+      return this.structureFile;
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } catch (error: any) {
+      this.log.error(`Could not get structure file: ${error.message} - ${error.cause}`, error);
+      throw new Error("Could not get structure file", { cause: error });
+    }
+  }
+
+  /**
+   * Enables binary streaming of value and text updates
+   */
+  async enableUpdates(): Promise<void> {
+    try {
+      this.ensureReadyState("Not connected and authenticated, cannot enable updates");
+      this.enableUpdatesRequested = true;
+      await this.connection.sendUnencryptedTextCommand("jdev/sps/enablebinstatusupdate");
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } catch (error: any) {
+      this.log.error(`Could not enable updates: ${error.message} - ${error.cause}`, error);
+      throw new Error("Could not enable updates", { cause: error });
+    }
+  }
+
+  /**
+   * Disconnects the client, optionally preserving the token
+   * @param {boolean} preserveToken Whether to preserve the token after disconnecting or not, if omitted, defaults to false
+   */
+  async disconnect(preserveToken = false): Promise<void> {
+    try {
+      this.setState(LoxoneClientState.disconnecting);
+
+      this.autoReconnect.disableAutoReconnect();
+
+      // stop token refresh timer
+      this.auth.tokenHandler.clearScheduledRefresh();
+
+      // kill (free up) token
+      if (!preserveToken) {
+        await this.auth.tokenHandler.killToken();
+      }
+
+      // disconnect websocket
+      this.connection?.cleanupAfterDisconnectOrError("Disconnect initiated");
+      this.setState(LoxoneClientState.disconnected);
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } catch (error: any) {
+      this.log.error(`Error while disconnecting: ${error.message} - ${error.cause}`, error);
+    }
+  }
+
+  /**
+   * Checks whether the token used is still valid
+   * @param {string} token (optional) token to check, defaults to the currently held token
+   */
+  async checkToken(token?: string): Promise<void> {
+    try {
+      this.ensureReadyState("Not connected and authenticated, cannot check token");
+      await this.auth.tokenHandler.checkToken(token);
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } catch (error: any) {
+      this.log.error(`Could not check token: ${error.message} - ${error.cause}`, error);
+      throw new Error("Could not check token", { cause: error });
+    }
+  }
+
+  /**
+   * Refreshes the token if it is still valid. Acquires a new token if token is not valid any more
+   */
+  async refreshToken(): Promise<void> {
+    try {
+      this.ensureReadyState("Not connected and authenticated, cannot refresh token");
+      await this.auth.tokenHandler.refreshToken();
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } catch (error: any) {
+      this.log.error(`Could not refresh token: ${error.message} - ${error.cause}`, error);
+      throw new Error("Could not refresh token", { cause: error });
+    }
+  }
+
+  /**
+   * Sends a text command to the Loxone Miniserver. If a Miniserver Gen.1 is used, command encryption will be used.
+   * @param {string} command The command to send
+   * @param {number} timeoutOverride (optional) timeoutoverride for this command
+   * @returns {Promise<TextMessage>} The response from the Loxone Miniserver
+   */
+  async sendTextCommand(
+    command: string,
+    timeoutOverride = this.COMMAND_TIMEOUT,
+  ): Promise<TextMessage> {
+    try {
+      this.ensureReadyState("Not connected and authenticated, cannot send command");
+      const encrypted = !this.isGen2;
+      return await this.connection?.sendCommand(command, encrypted, timeoutOverride);
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } catch (error: any) {
+      this.log.error(
+        `${command} - Could not send text command: ${error.message} - ${error.cause}`,
+        error,
+      );
+      throw new Error(`${command} - Could not send text command`, { cause: error });
+    }
+  }
+
+  /**
+   * Gets a file from the Loxone Miniserver.
+   * @param {string} filename Name of the file to retrieve
+   * @param {number} timeoutOverride (optional) timeoutoverride for this command
+   * @returns {Promise<FileMessage>} The file contents as a FileMessage
+   */
+  async sendFileCommand(
+    filename: string,
+    timeoutOverride = this.COMMAND_TIMEOUT,
+  ): Promise<FileMessage> {
+    try {
+      this.ensureReadyState("Not connected and authenticated, cannot send command");
+      return await this.connection?.sendUnencryptedFileCommand(filename, timeoutOverride);
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } catch (error: any) {
+      this.log.error(
+        `${filename} - Could not send file command: ${error.message} - ${error.cause}`,
+        error,
+      );
+      throw new Error(`${filename} - Could not send file command`, { cause: error });
+    }
+  }
+
+  /**
+   * Executes a command on the control identified by the UUID.
+   * @param {string | UUID} uuid The UUID of the control
+   * @param {string} command The command to execute
+   * @param {number} timeoutOverride (optional) timeoutoverride for this command
+   * @returns {Promise<TextMessage>} The response from the Loxone Miniserver
+   */
+  async control(
+    uuid: string | UUID,
+    command: string,
+    timeoutOverride = this.COMMAND_TIMEOUT,
+  ): Promise<TextMessage> {
+    const controlUuid = uuid instanceof UUID ? uuid.stringValue : uuid;
+    try {
+      this.ensureReadyState("Not connected and authenticated, cannot send command");
+      if (this.isStructureFileParsed && !this.controls.has(controlUuid)) {
+        this.log.warn(
+          `Control UUID '${controlUuid}' is not present in the structure file, control command will likely fail`,
+        );
+      }
+
+      const encrypted = !this.isGen2;
+      const fullCommand = `jdev/sps/io/${controlUuid}/${command}`;
+      const response = await this.connection.sendCommand<TextMessage>(
+        fullCommand,
+        encrypted,
+        timeoutOverride,
+      );
+      if (response.code === 404) this.log.error(`Loxone control '${controlUuid}' not found`);
+      else if (response.code !== 200)
+        this.log.error(
+          `${controlUuid}/${command} - unknown error, response was not 200 OK, but ${response.code}`,
+        );
+      if (response.value === "0")
+        this.log.error(
+          `Loxone command '${command}' invalid, response indicates unsuccessful execution (response.value = 0)`,
+        );
+      return response;
+      // oxlint-disable-next-line typescript/no-explicit-any
+    } catch (error: any) {
+      this.log.error(
+        `${controlUuid}/${command} - Could not execute control command: ${error.message} - ${error.cause}`,
+        error,
+      );
+      throw new Error(`${controlUuid}/${command} - Could not execute control command`, {
+        cause: error,
+      });
+    }
+  }
+
+  /**
+   * Parses the structure file and extracts relevant information. After calling this event, emitted event updates will
+   * contain enriched information about the room, control, and state names.
+   */
+  async parseStructureFile(): Promise<void> {
+    if (!this.structureFile) {
+      this.log.warn(`No structure file loaded, trying to get it`);
+      await this.getStructureFile();
     }
 
-    /**
-     * Enables binary streaming of value and text updates
-     */
-    async enableUpdates() {
-        try {
-            this.ensureReadyState('Not connected and authenticated, cannot enable updates');
-            this.enableUpdatesRequested = true;
-            await this.connection.sendUnencryptedTextCommand('jdev/sps/enablebinstatusupdate');
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } catch (error: any) {
-            this.log.error(`Could not enable updates: ${error.message} - ${error.cause}`, error);
-            throw new Error('Could not enable updates', { cause: error as Error });
+    this.log.info(`Parsing structure file...`);
+
+    this.log.info(`Processing rooms...`);
+    for (const uuid in this.structureFile.rooms) {
+      const room = this.structureFile.rooms[uuid];
+      this.log.debug(`Found Loxone room with UUID ${uuid}, name ${room.name}`);
+      this.rooms.set(uuid, new Room(UUID.fromString(uuid), room.name));
+    }
+    this.log.info(`Found ${this.rooms.size} rooms in the structure file.`);
+
+    // create a map of potential event UUIDs to room and control names with state names
+    for (const controlUuidString in this.structureFile.controls) {
+      const controlSection = this.structureFile.controls[controlUuidString];
+      if (!controlSection.type || controlSection.type === "SystemScheme") continue;
+      // lookup room
+      let room;
+      if (controlSection.room) {
+        room = this.rooms.get(controlSection.room);
+      } else {
+        room = this.rooms.get(UUID.empty.stringValue);
+      }
+      if (!room) throw new Error(`Could not find room with UUID ${controlSection.room}`);
+      // create control
+      const control = new Control(controlUuidString, controlSection, room);
+      this.controls.set(controlUuidString, control);
+      for (const stateKey in controlSection.states) {
+        const stateUuidString = controlSection.states[stateKey];
+        const stateUuid = UUID.fromString(stateUuidString);
+        const state = new State(stateUuid, stateKey, control);
+        this.states.set(stateUuidString, state);
+        control.addState(state);
+      }
+      // parse subcontrols, if any
+      if (controlSection.subControls) {
+        for (const subControlUuidString in controlSection.subControls) {
+          const subControlSection = controlSection.subControls[subControlUuidString];
+          const subControl = new Control(subControlUuidString, subControlSection, room, control);
+          this.controls.set(subControlUuidString, subControl);
+          for (const stateKey in subControlSection.states) {
+            const stateUuidString = subControlSection.states[stateKey];
+            const stateUuid = UUID.fromString(stateUuidString);
+            const state = new State(stateUuid, stateKey, subControl);
+            this.states.set(stateUuidString, state);
+            subControl.addState(state);
+          }
         }
+      }
+    }
+    this.log.info(`Found ${this.controls.size} controls in the structure file.`);
+    this.log.info(`Found ${this.states.size} states in the structure file.`);
+
+    this.isStructureFileParsed = true;
+  }
+
+  /**
+   * Sets the log level for the client.
+   * @param {LogLevel | LogLevelName} level The log level to set
+   */
+  setLogLevel(level: LogLevel | LogLevelName): void {
+    if (typeof level === "string") {
+      const normalizedLevel = level.trim().toUpperCase();
+      const logLevelMap: Record<string, LogLevel> = {
+        NONE: LogLevel.NONE,
+        NOTICE: LogLevel.NOTICE,
+        DEBUG: LogLevel.DEBUG,
+        INFO: LogLevel.INFO,
+        WARN: LogLevel.WARN,
+        ERROR: LogLevel.ERROR,
+        FATAL: LogLevel.FATAL,
+      };
+      const mappedLevel = logLevelMap[normalizedLevel];
+      if (mappedLevel === undefined) {
+        throw new Error(`Invalid log level: ${level}`);
+      }
+      this.log.logLevel = mappedLevel;
+      return;
     }
 
-    /**
-     * Disconnects the client, optionally preserving the token
-     * @param preserveToken Whether to preserve the token after disconnecting or not, if omitted, defaults to false
-     */
-    async disconnect(preserveToken = false) {
-        try {
-            this.setState(LoxoneClientState.disconnecting);
+    this.log.logLevel = level;
+  }
 
-            this.autoReconnect.disableAutoReconnect();
+  private wireUpEvents(): void {
+    if (this.wired) return;
 
-            // stop token refresh timer
-            this.auth.tokenHandler.clearScheduledRefresh();
+    this.connection.on("disconnected", (reason: string) => {
+      this.log.warn(`Disconnected: ${reason}`);
+      if (this._state !== LoxoneClientState.error) this.setState(LoxoneClientState.disconnected);
+    });
+    this.connection.on("error", (error: Error) => {
+      this.log.error(`Connection error: ${error.message}`, error);
+      this.setState(LoxoneClientState.error);
+    });
 
-            // kill (free up) token
-            if (!preserveToken) {
-                await this.auth.tokenHandler.killToken();
-            }
-
-            // disconnect websocket
-            this.connection?.cleanupAfterDisconnectOrError('Disconnect initiated');
-            this.setState(LoxoneClientState.disconnected);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } catch (error: any) {
-            this.log.error(`Error while disconnecting: ${error.message} - ${error.cause}`, error);
-        }
-    }
-
-    /**
-     * Checks whether the token used is still valid
-     */
-    async checkToken(token?: string) {
-        try {
-            this.ensureReadyState('Not connected and authenticated, cannot check token');
-            await this.auth.tokenHandler.checkToken(token);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } catch (error: any) {
-            this.log.error(`Could not check token: ${error.message} - ${error.cause}`, error);
-            throw new Error('Could not check token', { cause: error as Error });
-        }
-    }
-
-    /**
-     * Refreshes the token if it is still valid. Acquires a new token if token is not valid any more
-     */
-    async refreshToken() {
-        try {
-            this.ensureReadyState('Not connected and authenticated, cannot refresh token');
-            await this.auth.tokenHandler.refreshToken();
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } catch (error: any) {
-            this.log.error(`Could not refresh token: ${error.message} - ${error.cause}`, error);
-            throw new Error('Could not refresh token', { cause: error as Error });
-        }
-    }
-
-    /**
-     * Sends a text command to the Loxone Miniserver. If a Miniserver Gen.1 is used, command encryption will be used.
-     * @param command The command to send
-     * @param timeoutOverride (optional) timeoutoverride for this command
-     * @returns The response from the Loxone Miniserver
-     */
-    async sendTextCommand(command: string, timeoutOverride = this.COMMAND_TIMEOUT): Promise<TextMessage> {
-        try {
-            this.ensureReadyState('Not connected and authenticated, cannot send command');
-            const encrypted = !this.isGen2;
-            return await this.connection?.sendCommand(command, encrypted, timeoutOverride);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } catch (error: any) {
-            this.log.error(`${command} - Could not send text command: ${error.message} - ${error.cause}`, error);
-            throw new Error(`${command} - Could not send text command`, { cause: error as Error });
-        }
-    }
-
-    /**
-     * Gets a file from the Loxone Miniserver.
-     * @param filename Name of the file to retrieve
-     * @param timeoutOverride (optional) timeoutoverride for this command
-     * @returns The file contents as a FileMessage
-     */
-    async sendFileCommand(filename: string, timeoutOverride = this.COMMAND_TIMEOUT): Promise<FileMessage> {
-        try {
-            this.ensureReadyState('Not connected and authenticated, cannot send command');
-            return await this.connection?.sendUnencryptedFileCommand(filename, timeoutOverride);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } catch (error: any) {
-            this.log.error(`${filename} - Could not send file command: ${error.message} - ${error.cause}`, error);
-            throw new Error(`${filename} - Could not send file command`, { cause: error as Error });
-        }
-    }
-
-    /**
-     * Executes a command on the control identified by the UUID.
-     * @param uuid The UUID of the control
-     * @param command The command to execute
-     * @param timeoutOverride (optional) timeoutoverride for this command
-     * @returns The response from the Loxone Miniserver
-     */
-    async control(uuid: string | UUID, command: string, timeoutOverride = this.COMMAND_TIMEOUT): Promise<TextMessage> {
-        uuid = uuid instanceof UUID ? uuid.stringValue : uuid;
-        try {
-            this.ensureReadyState('Not connected and authenticated, cannot send command');
-            if (this.isStructureFileParsed && !this.controls.has(uuid)) {
-                this.log.warn(`Control UUID '${uuid}' is not present in the structure file, control command will likely fail`);
-            }
-
-            const encrypted = !this.isGen2;
-            const fullCommand = `jdev/sps/io/${uuid}/${command}`;
-            const response = await this.connection.sendCommand<TextMessage>(fullCommand, encrypted, timeoutOverride);
-            if (response.code === 404) this.log.error(`Loxone control '${uuid}' not found`);
-            else if (response.code !== 200) this.log.error(`${uuid}/${command} - unknown error, response was not 200 OK, but ${response.code}`);
-            if (response.value === '0') this.log.error(`Loxone command '${command}' invalid, response indicates unsuccessful execution (response.value = 0)`);
-            return response;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } catch (error: any) {
-            this.log.error(`${uuid}/${command} - Could not execute control command: ${error.message} - ${error.cause}`, error);
-            throw new Error(`${uuid}/${command} - Could not execute control command`, { cause: error as Error });
-        }
-    }
-
-    /**
-     * Parses the structure file and extracts relevant information. After calling this event, emitted event updates will
-     * contain enriched information about the room, control, and state names.
-     */
-    async parseStructureFile() {
-        if (!this.structureFile) {
-            this.log.warn(`No structure file loaded, trying to get it`);
-            await this.getStructureFile();
-        }
-
-        this.log.info(`Parsing structure file...`);
-
-        this.log.info(`Processing rooms...`);
-        for (const uuid in this.structureFile.rooms) {
-            const room = this.structureFile.rooms[uuid];
-            this.log.debug(`Found Loxone room with UUID ${uuid}, name ${room.name}`);
-            this.rooms.set(uuid, new Room(UUID.fromString(uuid), room.name));
-        }
-        this.log.info(`Found ${this.rooms.size} rooms in the structure file.`);
-
-        // create a map of potential event UUIDs to room and control names with state names
-        for (const controlUuidString in this.structureFile.controls) {
-            const controlSection = this.structureFile.controls[controlUuidString];
-            if (!controlSection.type || controlSection.type === 'SystemScheme') continue;
-            // lookup room
-            let room;
-            if (!controlSection.room) {
-                room = this.rooms.get(UUID.empty.stringValue);
-            } else {
-                room = this.rooms.get(controlSection.room);
-            }
-            if (!room) throw new Error(`Could not find room with UUID ${controlSection.room}`);
-            // create control
-            const control = new Control(controlUuidString, controlSection, room);
-            this.controls.set(controlUuidString, control);
-            for (const stateKey in controlSection.states) {
-                const stateUuidString = controlSection.states[stateKey];
-                const stateUuid = UUID.fromString(stateUuidString);
-                const state = new State(stateUuid, stateKey, control);
-                this.states.set(stateUuidString, state);
-                control.addState(state);
-            }
-            // parse subcontrols, if any
-            if (controlSection.subControls) {
-                for (const subControlUuidString in controlSection.subControls) {
-                    const subControlSection = controlSection.subControls[subControlUuidString];
-                    const subControl = new Control(subControlUuidString, subControlSection, room, control);
-                    this.controls.set(subControlUuidString, subControl);
-                    for (const stateKey in subControlSection.states) {
-                        const stateUuidString = subControlSection.states[stateKey];
-                        const stateUuid = UUID.fromString(stateUuidString);
-                        const state = new State(stateUuid, stateKey, subControl);
-                        this.states.set(stateUuidString, state);
-                        subControl.addState(state);
-                    }
-                }
-            }
-        }
-        this.log.info(`Found ${this.controls.size} controls in the structure file.`);
-        this.log.info(`Found ${this.states.size} states in the structure file.`);
-
-        this.isStructureFileParsed = true;
-    }
-
-    /**
-     * Sets the log level for the client.
-     * @param level The log level to set
-     */
-    setLogLevel(level: LogLevel | LogLevelName) {
-        if (typeof level === 'string') {
-            const normalizedLevel = level.trim().toUpperCase();
-            const logLevelMap: Record<string, LogLevel> = {
-                NONE: LogLevel.NONE,
-                NOTICE: LogLevel.NOTICE,
-                DEBUG: LogLevel.DEBUG,
-                INFO: LogLevel.INFO,
-                WARN: LogLevel.WARN,
-                ERROR: LogLevel.ERROR,
-                FATAL: LogLevel.FATAL,
-            };
-            const mappedLevel = logLevelMap[normalizedLevel];
-            if (mappedLevel === undefined) {
-                throw new Error(`Invalid log level: ${level}`);
-            }
-            this.log.logLevel = mappedLevel;
-            return;
-        }
-
-        this.log.logLevel = level;
-    }
-
-    private wireUpEvents() {
-        if (this.wired) return;
-
-        this.connection.on('disconnected', (reason: string) => {
-            this.log.warn(`Disconnected: ${reason}`);
-            if (this._state !== LoxoneClientState.error) this.setState(LoxoneClientState.disconnected);
+    if (this.autoReconnect.autoReconnectEnabled) {
+      this.connection.on("disconnected", () => {
+        void this.autoReconnect.startAutoReconnect().catch((error: unknown) => {
+          this.log.error(
+            `Failed to start auto reconnect: ${error instanceof Error ? error.message : String(error)}`,
+            error,
+          );
         });
-        this.connection.on('error', (error: Error) => {
-            this.log.error(`Connection error: ${error.message}`, error);
-            this.setState(LoxoneClientState.error);
-        });
-
-        if (this.autoReconnect.autoReconnectEnabled) {
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            this.connection.on('disconnected', async (reason: string) => {
-                try {
-                    await this.autoReconnect.startAutoReconnect();
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                } catch (error: any) {
-                    this.log.error(`Failed to start auto reconnect: ${error?.message}`, error);
-                }
-            });
-            this.connection.on('connected', async () => {
-                try {
-                    this.autoReconnect.stopAutoReconnect();
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                } catch (error: any) {
-                    this.log.error(`Failed to stop auto reconnect: ${error?.message}`, error);
-                }
-            });
+      });
+      this.connection.on("connected", () => {
+        try {
+          this.autoReconnect.stopAutoReconnect();
+        } catch (error: unknown) {
+          this.log.error(
+            `Failed to stop auto reconnect: ${error instanceof Error ? error.message : String(error)}`,
+            error,
+          );
         }
+      });
+    }
 
-        // forward events from the underlying connection to this client
-        const EVENTS = ['connected', 'disconnected', 'error', 'text_message', 'file_message'];
+    // forward events from the underlying connection to this client
+    this.connection.on("connected", () => this.emit("connected"));
+    this.connection.on("disconnected", (reason) => this.emit("disconnected", reason));
+    this.connection.on("error", (error) => this.emit("error", error));
+    this.connection.on("text_message", (message) => this.emit("text_message", message));
+    this.connection.on("file_message", (message) => this.emit("file_message", message));
 
-        for (const event of EVENTS) {
-            // forward any args from the connection to the client emitter
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            this.connection.on(event as keyof WebSocketConnectionEvents, (...args: any[]) => this.emit(event as keyof LoxoneClientEvents, ...(args as any)));
+    this.connection.on("event_table_values", (eventTable: LoxoneValueEvent[]) => {
+      this.filterAndLogAndEmitEvents(eventTable);
+    });
+    this.connection.on("event_table_text", (eventTable: LoxoneTextEvent[]) => {
+      this.filterAndLogAndEmitEvents(eventTable);
+    });
+
+    this.wired = true;
+  }
+
+  private filterAndLogAndEmitEvents(eventTable: LoxoneEvent[]): void {
+    let filteredEventTable = eventTable;
+    // filter by watchlist
+    if (this.uuidWatchlist.size > 0) {
+      filteredEventTable = eventTable.filter((event) =>
+        this.uuidWatchlist.has(event.uuid.stringValue),
+      );
+    }
+    filteredEventTable.forEach((event) => {
+      // enrich if we have the data
+      if (this.isStructureFileParsed) {
+        if (event instanceof LoxoneEnrichableEvent) {
+          // oxlint-disable-next-line no-param-reassign
+          event = this.enrichEvent(event);
         }
-
-        this.connection.on('event_table_values', (eventTable: LoxoneValueEvent[]) => {
-            this.filterAndLogAndEmitEvents(eventTable);
-        });
-        this.connection.on('event_table_text', (eventTable: LoxoneTextEvent[]) => {
-            this.filterAndLogAndEmitEvents(eventTable);
-        });
-
-        this.wired = true;
-    }
-
-    private filterAndLogAndEmitEvents(eventTable: (LoxoneValueEvent | LoxoneTextEvent)[]) {
-        // filter by watchlist
-        if (this.uuidWatchlist.size > 0) {
-            eventTable = eventTable.filter((event) => this.uuidWatchlist.has(event.uuid.stringValue));
+        if (this.options.maintainLatestEvents) {
+          const state = this.states.get(event.uuid.stringValue);
+          if (state) {
+            state.latestEvent = event;
+          }
         }
-        eventTable.forEach((event) => {
-            // enrich if we have the data
-            if (this.isStructureFileParsed) {
-                event = this.enrichEvent(event);
-                if (this.options.maintainLatestEvents) {
-                    const state = this.states.get(event.uuid.stringValue);
-                    if (state) {
-                        state.latestEvent = event;
-                    }
-                }
-            }
-            if (this.options.messageLogEnabled && (this.options.logAllEvents || this.uuidWatchlist.size > 0)) {
-                this.log.debug(`Loxone event: ${event.toString()}`);
-            }
-            if (event instanceof LoxoneValueEvent) {
-                this.emit('event_value', event);
-            } else if (event instanceof LoxoneTextEvent) {
-                this.emit('event_text', event);
-            }
-        });
+      }
+      if (
+        this.options.messageLogEnabled &&
+        (this.options.logAllEvents || this.uuidWatchlist.size > 0)
+      ) {
+        this.log.debug(`Loxone event: ${event.toString()}`);
+      }
+      if (event instanceof LoxoneValueEvent) {
+        this.emit("event_value", event);
+      } else if (event instanceof LoxoneTextEvent) {
+        this.emit("event_text", event);
+      } else if (event instanceof LoxoneDayTimerEvent) {
+        this.emit("event_daytimer", event);
+      } else if (event instanceof LoxoneWeatherEvent) {
+        this.emit("event_weather", event);
+      }
+    });
+  }
+
+  /**
+   * Adds one or more UUIDs to the watch list. Value and text events will only be emitted for these UUIDs.
+   * If the watchlist is empty, all events will be emitted.
+   * @param {string | string[]} uuid The UUID or array of UUIDs to add
+   */
+  addUuidToWatchList(uuid: string | string[]): void {
+    const ids = Array.isArray(uuid) ? uuid : [uuid];
+    for (const id of ids) {
+      if (this.isStructureFileParsed && !this.states.has(id)) {
+        this.log.warn(`UUID ${id} is not present in the structure file`);
+      }
+      this.uuidWatchlist.add(id);
+    }
+  }
+
+  /**
+   * Removes one or more UUIDs from the watch list.
+   * @param {string | string[]} uuid The UUID or array of UUIDs to remove
+   */
+  removeUuidFromWatchList(uuid: string | string[]): void {
+    const ids = Array.isArray(uuid) ? uuid : [uuid];
+    ids.forEach((id) => this.uuidWatchlist.delete(id));
+  }
+
+  private enrichEvent<T extends LoxoneEnrichableEvent>(event: T): T {
+    if (!this.isStructureFileParsed) return event;
+
+    const state = this.states.get(event.uuid.stringValue);
+    if (!state) return event;
+
+    event.state = state;
+
+    event.isEnriched = true;
+
+    return event;
+  }
+
+  private async checkVersion(): Promise<void> {
+    const response = await fetch("http://" + this.host + "/jdev/cfg/apiKey");
+    if (response.status === 503) {
+      throw new Error("Miniserver is rebooting");
+    }
+    if (!response.ok) {
+      this.log.error(`Failed to check version: ${response.status}`, response);
+      throw new Error("Failed to check version");
+    }
+    // oxlint-disable-next-line typescript/no-explicit-any
+    const data: any = await response.json();
+    const jsonString = data.LL.value.replace(/'/g, '"');
+    const dataJson = JSON.parse(jsonString);
+    const version = dataJson.version;
+    const versionParts = version.split(".");
+    if (versionParts[0] < 11 || (versionParts[0] === 11 && versionParts[1] < 2)) {
+      this.log.error(`Unsupported Loxone firmware version, needs to be at least 11.2: ${version}`);
+      exit(1);
     }
 
-    /**
-     * Adds one or more UUIDs to the watch list. Value and text events will only be emitted for these UUIDs.
-     * If the watchlist is empty, all events will be emitted.
-     * @param uuid The UUID or array of UUIDs to add
-     */
-    addUuidToWatchList(uuid: string | string[]) {
-        const ids = Array.isArray(uuid) ? uuid : [uuid];
-        for (const id of ids) {
-            if (this.isStructureFileParsed && !this.states.has(id)) {
-                this.log.warn(`UUID ${id} is not present in the structure file`);
-            }
-            this.uuidWatchlist.add(id);
-        }
+    if (dataJson.httpsStatus) {
+      this.isGen2 = true;
     }
+  }
 
-    /**
-     * Removes one or more UUIDs from the watch list.
-     * @param uuid The UUID or array of UUIDs to remove
-     */
-    removeUuidFromWatchList(uuid: string | string[]) {
-        const ids = Array.isArray(uuid) ? uuid : [uuid];
-        ids.forEach((id) => this.uuidWatchlist.delete(id));
+  private ensureReadyState(errorReason: string): void {
+    if (this._state !== LoxoneClientState.ready) {
+      throw new Error(`Client is not in an expected state - ${errorReason}`);
     }
+  }
 
-    private enrichEvent<T extends LoxoneEnrichableEvent>(event: T): T {
-        if (!this.isStructureFileParsed) return event;
-
-        const state = this.states.get(event.uuid.stringValue);
-        if (!state) return event;
-
-        event.state = state;
-
-        event.isEnriched = true;
-
-        return event;
+  private setState(state: LoxoneClientState): void {
+    if (this._state !== state) {
+      this._state = state;
+      this.log.info(`State changed to: ${YELLOW}${state}${nf}`);
+      this.emit("stateChanged", state);
     }
+  }
 
-    private async checkVersion() {
-        const response = await fetch('http://' + this.host + '/jdev/cfg/apiKey');
-        if (response.status === 503) {
-            throw new Error('Miniserver is rebooting');
-        }
-        if (!response.ok) {
-            this.log.error(`Failed to check version: ${response.status}`, response);
-            throw new Error('Failed to check version');
-        }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const data: any = await response.json();
-        const jsonString = data.LL.value.replace(/'/g, '"');
-        const dataJson = JSON.parse(jsonString);
-        const version = dataJson.version;
-        const versionParts = version.split('.');
-        if (versionParts[0] < 11 || (versionParts[0] === 11 && versionParts[1] < 2)) {
-            this.log.error(`Unsupported Loxone firmware version, needs to be at least 11.2: ${version}`);
-            exit(1);
-        }
+  // Typed emitting of events
+  override on<K extends keyof LoxoneClientEvents>(event: K, listener: LoxoneClientEvents[K]): this {
+    // oxlint-disable-next-line typescript/no-explicit-any
+    return super.on(event, listener as (...args: any[]) => void);
+  }
 
-        if (dataJson.httpsStatus) {
-            this.isGen2 = true;
-        }
-    }
+  override once<K extends keyof LoxoneClientEvents>(
+    event: K,
+    listener: LoxoneClientEvents[K],
+  ): this {
+    // oxlint-disable-next-line typescript/no-explicit-any
+    return super.once(event, listener as (...args: any[]) => void);
+  }
 
-    private ensureReadyState(errorReason: string) {
-        if (this._state !== LoxoneClientState.ready) {
-            throw new Error(`Client is not in an expected state - ${errorReason}`);
-        }
-    }
+  override off<K extends keyof LoxoneClientEvents>(
+    event: K,
+    listener: LoxoneClientEvents[K],
+  ): this {
+    // oxlint-disable-next-line typescript/no-explicit-any
+    return super.off(event, listener as (...args: any[]) => void);
+  }
 
-    private setState(state: LoxoneClientState) {
-        if (this._state !== state) {
-            this._state = state;
-            this.log.info(`State changed to: ${YELLOW}${state}${nf}`);
-            this.emit('stateChanged', state);
-        }
-    }
-
-    // Typed emitting of events
-    override on<K extends keyof LoxoneClientEvents>(event: K, listener: LoxoneClientEvents[K]): this {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return super.on(event as string, listener as (...args: any[]) => void);
-    }
-
-    override once<K extends keyof LoxoneClientEvents>(event: K, listener: LoxoneClientEvents[K]): this {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return super.once(event as string, listener as (...args: any[]) => void);
-    }
-
-    override off<K extends keyof LoxoneClientEvents>(event: K, listener: LoxoneClientEvents[K]): this {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return super.off(event as string, listener as (...args: any[]) => void);
-    }
-
-    override emit<K extends keyof LoxoneClientEvents>(event: K, ...args: Parameters<LoxoneClientEvents[K]>): boolean {
-        return super.emit(event as string, ...args);
-    }
+  override emit<K extends keyof LoxoneClientEvents>(
+    event: K,
+    ...args: Parameters<LoxoneClientEvents[K]>
+  ): boolean {
+    return super.emit(event, ...args);
+  }
 }
 
 export default LoxoneClient;
