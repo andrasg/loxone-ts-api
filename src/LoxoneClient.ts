@@ -20,6 +20,7 @@ import LoxoneDayTimerEvent from "./LoxoneEvents/LoxoneDayTimerEvent.js";
 import type { LoxoneEvent } from "./LoxoneEvents/LoxoneEvent.js";
 import { EventEmitter } from "node:events";
 import { resolveBaseUrl } from "./Services/AddressResolver.js";
+import { describeError } from "./Utils/ErrorFormatter.js";
 
 type LogLevelName = "none" | "fatal" | "error" | "warn" | "notice" | "info" | "debug";
 
@@ -154,10 +155,8 @@ class LoxoneClient extends EventEmitter {
         this.log.info("Re-enabling binary updates after reconnect");
         await this.enableUpdates();
       }
-
-      // oxlint-disable-next-line typescript/no-explicit-any
-    } catch (error: any) {
-      this.log.error(`Could not connect: ${error.message} - ${error.cause}`, error);
+    } catch (error: unknown) {
+      this.log.error(`Could not connect: ${describeError(error)}`, error);
       this.setState(LoxoneClientState.error);
       await this.autoReconnect.startAutoReconnect(existingToken);
     }
@@ -176,10 +175,9 @@ class LoxoneClient extends EventEmitter {
         `Received structure file with last modified: ${this.structureFile.lastModified}`,
       );
       return this.structureFile;
-      // oxlint-disable-next-line typescript/no-explicit-any
-    } catch (error: any) {
-      this.log.error(`Could not get structure file: ${error.message} - ${error.cause}`, error);
-      throw new Error("Could not get structure file", { cause: error });
+    } catch (error: unknown) {
+      this.log.error(`Could not get structure file: ${describeError(error)}`, error);
+      throw new Error(`Could not get structure file: ${describeError(error)}`, { cause: error });
     }
   }
 
@@ -191,10 +189,9 @@ class LoxoneClient extends EventEmitter {
       this.ensureReadyState("Not connected and authenticated, cannot enable updates");
       this.enableUpdatesRequested = true;
       await this.webSocketConnection.sendUnencryptedTextCommand("jdev/sps/enablebinstatusupdate");
-      // oxlint-disable-next-line typescript/no-explicit-any
-    } catch (error: any) {
-      this.log.error(`Could not enable updates: ${error.message} - ${error.cause}`, error);
-      throw new Error("Could not enable updates", { cause: error });
+    } catch (error: unknown) {
+      this.log.error(`Could not enable updates: ${describeError(error)}`, error);
+      throw new Error(`Could not enable updates: ${describeError(error)}`, { cause: error });
     }
   }
 
@@ -219,9 +216,8 @@ class LoxoneClient extends EventEmitter {
       // disconnect websocket
       this.webSocketConnection?.cleanupAfterDisconnectOrError("Disconnect initiated");
       this.setState(LoxoneClientState.disconnected);
-      // oxlint-disable-next-line typescript/no-explicit-any
-    } catch (error: any) {
-      this.log.error(`Error while disconnecting: ${error.message} - ${error.cause}`, error);
+    } catch (error: unknown) {
+      this.log.error(`Error while disconnecting: ${describeError(error)}`, error);
     }
   }
 
@@ -233,10 +229,9 @@ class LoxoneClient extends EventEmitter {
     try {
       this.ensureReadyState("Not connected and authenticated, cannot check token");
       await this.auth.tokenHandler.checkToken(token);
-      // oxlint-disable-next-line typescript/no-explicit-any
-    } catch (error: any) {
-      this.log.error(`Could not check token: ${error.message} - ${error.cause}`, error);
-      throw new Error("Could not check token", { cause: error });
+    } catch (error: unknown) {
+      this.log.error(`Could not check token: ${describeError(error)}`, error);
+      throw new Error(`Could not check token: ${describeError(error)}`, { cause: error });
     }
   }
 
@@ -247,10 +242,9 @@ class LoxoneClient extends EventEmitter {
     try {
       this.ensureReadyState("Not connected and authenticated, cannot refresh token");
       await this.auth.tokenHandler.refreshToken();
-      // oxlint-disable-next-line typescript/no-explicit-any
-    } catch (error: any) {
-      this.log.error(`Could not refresh token: ${error.message} - ${error.cause}`, error);
-      throw new Error("Could not refresh token", { cause: error });
+    } catch (error: unknown) {
+      this.log.error(`Could not refresh token: ${describeError(error)}`, error);
+      throw new Error(`Could not refresh token: ${describeError(error)}`, { cause: error });
     }
   }
 
@@ -268,13 +262,11 @@ class LoxoneClient extends EventEmitter {
       this.ensureReadyState("Not connected and authenticated, cannot send command");
       const encrypted = !this.isGen2;
       return await this.webSocketConnection?.sendCommand(command, encrypted, timeoutOverride);
-      // oxlint-disable-next-line typescript/no-explicit-any
-    } catch (error: any) {
-      this.log.error(
-        `${command} - Could not send text command: ${error.message} - ${error.cause}`,
-        error,
-      );
-      throw new Error(`${command} - Could not send text command`, { cause: error });
+    } catch (error: unknown) {
+      this.log.error(`${command} - Could not send text command: ${describeError(error)}`, error);
+      throw new Error(`${command} - Could not send text command: ${describeError(error)}`, {
+        cause: error,
+      });
     }
   }
 
@@ -291,13 +283,11 @@ class LoxoneClient extends EventEmitter {
     try {
       this.ensureReadyState("Not connected and authenticated, cannot send command");
       return await this.webSocketConnection?.sendUnencryptedFileCommand(filename, timeoutOverride);
-      // oxlint-disable-next-line typescript/no-explicit-any
-    } catch (error: any) {
-      this.log.error(
-        `${filename} - Could not send file command: ${error.message} - ${error.cause}`,
-        error,
-      );
-      throw new Error(`${filename} - Could not send file command`, { cause: error });
+    } catch (error: unknown) {
+      this.log.error(`${filename} - Could not send file command: ${describeError(error)}`, error);
+      throw new Error(`${filename} - Could not send file command: ${describeError(error)}`, {
+        cause: error,
+      });
     }
   }
 
@@ -339,15 +329,17 @@ class LoxoneClient extends EventEmitter {
           `Loxone command '${command}' invalid, response indicates unsuccessful execution (response.value = 0)`,
         );
       return response;
-      // oxlint-disable-next-line typescript/no-explicit-any
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.log.error(
-        `${controlUuid}/${command} - Could not execute control command: ${error.message} - ${error.cause}`,
+        `${controlUuid}/${command} - Could not execute control command: ${describeError(error)}`,
         error,
       );
-      throw new Error(`${controlUuid}/${command} - Could not execute control command`, {
-        cause: error,
-      });
+      throw new Error(
+        `${controlUuid}/${command} - Could not execute control command: ${describeError(error)}`,
+        {
+          cause: error,
+        },
+      );
     }
   }
 
@@ -457,20 +449,14 @@ class LoxoneClient extends EventEmitter {
     if (this.autoReconnect.autoReconnectEnabled) {
       this.webSocketConnection.on("disconnected", () => {
         void this.autoReconnect.startAutoReconnect().catch((error: unknown) => {
-          this.log.error(
-            `Failed to start auto reconnect: ${error instanceof Error ? error.message : String(error)}`,
-            error,
-          );
+          this.log.error(`Failed to start auto reconnect: ${describeError(error)}`, error);
         });
       });
       this.webSocketConnection.on("connected", () => {
         try {
           this.autoReconnect.stopAutoReconnect();
         } catch (error: unknown) {
-          this.log.error(
-            `Failed to stop auto reconnect: ${error instanceof Error ? error.message : String(error)}`,
-            error,
-          );
+          this.log.error(`Failed to stop auto reconnect: ${describeError(error)}`, error);
         }
       });
     }
