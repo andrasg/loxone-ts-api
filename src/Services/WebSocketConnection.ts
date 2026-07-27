@@ -30,7 +30,7 @@ interface PendingQueueEntry<T extends FileMessage | TextMessage> {
 class WebSocketConnection extends EventEmitter {
   private nextExpectedMessageType: MessageType = MessageType.HEADER;
   private ws: WebSocket | undefined;
-  private host: string;
+  private baseUrl: URL | undefined;
   private loxoneClient: LoxoneClient;
 
   // keepalive handling
@@ -51,20 +51,24 @@ class WebSocketConnection extends EventEmitter {
   constructor(
     loxoneClient: LoxoneClient,
     log: AnsiLogger,
-    host: string,
     commandTimeout: number,
     messageLog: boolean,
   ) {
     super();
     this.loxoneClient = loxoneClient;
-    this.host = host;
     this.COMMAND_TIMEOUT = commandTimeout;
     this.log = log;
     this.messageLog = messageLog;
   }
 
-  async connect(): Promise<void> {
-    this.ws = new WebSocket(`ws://${this.host}/ws/rfc6455`, "remotecontrol");
+  async connect(baseUrl: URL): Promise<void> {
+    this.baseUrl = baseUrl;
+    if (!this.baseUrl) {
+      throw new Error("Base URL is not set, cannot get public key");
+    }
+    const wsUrl = new URL("ws/rfc6455", this.baseUrl);
+    wsUrl.protocol = this.baseUrl.protocol === "https:" ? "wss:" : "ws:";
+    this.ws = new WebSocket(wsUrl, "remotecontrol");
     this.ws.on("open", () => {
       this.emit("connected");
     });

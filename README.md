@@ -2,7 +2,7 @@
 
 A Node module written in TypeScript for facilitating communication with Loxone Miniservers. Communication is done using http and WebSockets.
 
-Currently only implemented http/ws communication to enable support for Gen.1 and Gen.2 Miniservers. https/wss communication currently not supported, but planned.
+Tested on Gen.1 Miniservers, but https support also added, so should work with Gen.2 Miniservers too.
 
 ## Key featrues
 
@@ -11,6 +11,7 @@ Currently only implemented http/ws communication to enable support for Gen.1 and
   - Support for token-based auth, token refresh and token invalidation
   - Supports automatic reconnect
   - Automatically maintains connection upon disconnect or error
+  - Supports determining Miniserver address via Loxone RemoteConnect
 - Event emitting
   - emits events on key connection events
   - emits events for message received
@@ -57,6 +58,9 @@ let log = new AnsiLogger({ logName: "workbench", logTimestampFormat: TimestampFo
 
 // instantiate the client
 let client = new LoxoneClient("192.168.1.253:80", "user", "pass");
+
+// alternatively use MAC address to use Loxone Remote Connect
+let client = new LoxoneClient("AA:BB:CC:DD:EE:FF", "user", "pass");
 
 // sets log level to debug for more verbose logging
 client.setLogLevel(LogLevel.DEBUG);
@@ -123,7 +127,7 @@ Key entrypoint to the module.
 
 ```ts
     LoxoneClient(
-        host: string,
+        address: string,
         username: string,
         password: string,
         clientOptions: Partial<LoxoneClientOptions>
@@ -134,7 +138,7 @@ Key entrypoint to the module.
 
 | parameter                          | description                                                                                                                 |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| host                               | IP address or hostname of the Loxone Miniserver                                                                             |
+| address                            | IP address, hostname, URL or MAC address of the Loxone Miniserver                                                           |
 | username                           | username to use                                                                                                             |
 | password                           | password for the user                                                                                                       |
 | clientOptions.autoReconnectEnabled | optional parameter to override the default behavior of automatically reconnecting on failure/disconnection                  |

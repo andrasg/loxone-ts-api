@@ -1,7 +1,18 @@
 {
   "name": "loxone-ts-api",
-  "version": "1.4.0",
+  "version": "2.0.0",
   "description": "TypeScript client for the Loxone API",
+  "keywords": [
+    "api",
+    "loxone",
+    "typescript"
+  ],
+  "license": "MIT",
+  "author": "Andras Gaal",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andrasg/loxone-ts-api.git"
+  },
   "type": "module",
   "main": "dist/LoxoneClient.js",
   "types": "dist/LoxoneClient.d.ts",
@@ -16,20 +27,6 @@
     "lint": "oxlint --disable-nested-config",
     "lint:fix": "oxlint --disable-nested-config --fix"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/andrasg/loxone-ts-api.git"
-  },
-  "keywords": [
-    "loxone",
-    "api",
-    "typescript"
-  ],
-  "author": "Andras Gaal",
-  "license": "MIT",
-  "engines": {
-    "node": ">=24.0.0 <25.0.0 || >=26.0.0 <27.0.0"
-  },
   "dependencies": {
     "node-ansi-logger": "^3.3.0",
     "ws": "^8.21.1"
@@ -41,5 +38,8 @@
     "oxlint": "1.75.0",
     "oxlint-tsgolint": "7.0.2001",
     "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=24.0.0 <25.0.0 || >=26.0.0 <27.0.0"
   }
 }

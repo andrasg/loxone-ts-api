@@ -19,13 +19,15 @@ import LoxoneWeatherEvent from "./LoxoneEvents/LoxoneWeatherEvent.js";
 import LoxoneDayTimerEvent from "./LoxoneEvents/LoxoneDayTimerEvent.js";
 import type { LoxoneEvent } from "./LoxoneEvents/LoxoneEvent.js";
 import { EventEmitter } from "node:events";
+import { resolveBaseUrl } from "./Services/AddressResolver.js";
 
 type LogLevelName = "none" | "fatal" | "error" | "warn" | "notice" | "info" | "debug";
 
 class LoxoneClient extends EventEmitter {
-  private readonly connection: WebSocketConnection;
+  private readonly webSocketConnection: WebSocketConnection;
   readonly auth: Auth;
-  private readonly host: string;
+  private readonly address: string;
+  private baseUrl: URL | undefined;
   private readonly COMMAND_TIMEOUT = 15000;
   private readonly log: AnsiLogger;
   private readonly uuidWatchlist = new Set<string>();
@@ -62,13 +64,14 @@ class LoxoneClient extends EventEmitter {
 
   /**
    * A wrapper class for communicating with and controlling a Loxone Miniserver
-   * @param {string} host Loxone hostname or IP
+   * @param {string} address Miniserver serial number (MAC address), IP address, hostname or base URL.
+   * A serial number is resolved via Remote Connect, everything else without a scheme defaults to "http://".
    * @param {string} username Username to be used
    * @param {string} password Password for the user
    * @param {Partial<LoxoneClientOptions> | LoxoneClientOptions} clientOptions (optional) client options for configuring the Loxone client
    */
   constructor(
-    host: string,
+    address: string,
     username: string,
     password: string,
     clientOptions: Partial<LoxoneClientOptions> | LoxoneClientOptions = new LoxoneClientOptions(),
@@ -84,15 +87,14 @@ class LoxoneClient extends EventEmitter {
       logTimestampFormat: TimestampFormat.TIME_MILLIS,
       logLevel: options.logLevel,
     });
-    this.connection = new WebSocketConnection(
+    this.address = address;
+    this.webSocketConnection = new WebSocketConnection(
       this,
       this.log,
-      host,
       this.COMMAND_TIMEOUT,
       options.messageLogEnabled,
     );
-    this.auth = new Auth(this.log, this.connection, host, username, password, options);
-    this.host = host;
+    this.auth = new Auth(this.log, this.webSocketConnection, username, password, options);
     this.autoReconnect = new AutoReconnect(this, this.log, options.autoReconnectEnabled);
     this.options = options;
 
@@ -118,27 +120,31 @@ class LoxoneClient extends EventEmitter {
       // 1. pass through events
       this.wireUpEvents();
 
-      // 2. check version and https
+      // 2. resolve the configured address into a base URL
+      this.baseUrl = await resolveBaseUrl(this.address);
+      this.log.info(`Resolved address '${this.address}' to ${this.baseUrl.origin}`);
+
+      // 3. check version and https
       await this.checkVersion();
 
-      // 3. create websocket connection and connect
-      await this.connection?.connect();
+      // 4. create websocket connection and connect
+      await this.webSocketConnection?.connect(this.baseUrl);
       this.log.info("Connected");
       this.setState(LoxoneClientState.connected);
 
-      // 4. perform auth
+      // 5. perform auth
       this.setState(LoxoneClientState.authenticating);
-      await this.auth.authenticate(existingToken);
+      await this.auth.authenticate(this.baseUrl, existingToken);
       this.setState(LoxoneClientState.authenticated);
       this.log.info("Authenticated");
       this.emit("authenticated");
 
-      // 5. enable keep-alive
+      // 6. enable keep-alive
       if (this.options.keepAliveEnabled) {
-        this.connection?.enableKeepAlive();
+        this.webSocketConnection?.enableKeepAlive();
       }
 
-      // 6. we're ready
+      // 7. we're ready
       this.setState(LoxoneClientState.ready);
       this.log.info("LoxoneClient is ready to receive commands");
       this.emit("ready");
@@ -184,7 +190,7 @@ class LoxoneClient extends EventEmitter {
     try {
       this.ensureReadyState("Not connected and authenticated, cannot enable updates");
       this.enableUpdatesRequested = true;
-      await this.connection.sendUnencryptedTextCommand("jdev/sps/enablebinstatusupdate");
+      await this.webSocketConnection.sendUnencryptedTextCommand("jdev/sps/enablebinstatusupdate");
       // oxlint-disable-next-line typescript/no-explicit-any
     } catch (error: any) {
       this.log.error(`Could not enable updates: ${error.message} - ${error.cause}`, error);
@@ -211,7 +217,7 @@ class LoxoneClient extends EventEmitter {
       }
 
       // disconnect websocket
-      this.connection?.cleanupAfterDisconnectOrError("Disconnect initiated");
+      this.webSocketConnection?.cleanupAfterDisconnectOrError("Disconnect initiated");
       this.setState(LoxoneClientState.disconnected);
       // oxlint-disable-next-line typescript/no-explicit-any
     } catch (error: any) {
@@ -261,7 +267,7 @@ class LoxoneClient extends EventEmitter {
     try {
       this.ensureReadyState("Not connected and authenticated, cannot send command");
       const encrypted = !this.isGen2;
-      return await this.connection?.sendCommand(command, encrypted, timeoutOverride);
+      return await this.webSocketConnection?.sendCommand(command, encrypted, timeoutOverride);
       // oxlint-disable-next-line typescript/no-explicit-any
     } catch (error: any) {
       this.log.error(
@@ -284,7 +290,7 @@ class LoxoneClient extends EventEmitter {
   ): Promise<FileMessage> {
     try {
       this.ensureReadyState("Not connected and authenticated, cannot send command");
-      return await this.connection?.sendUnencryptedFileCommand(filename, timeoutOverride);
+      return await this.webSocketConnection?.sendUnencryptedFileCommand(filename, timeoutOverride);
       // oxlint-disable-next-line typescript/no-explicit-any
     } catch (error: any) {
       this.log.error(
@@ -318,7 +324,7 @@ class LoxoneClient extends EventEmitter {
 
       const encrypted = !this.isGen2;
       const fullCommand = `jdev/sps/io/${controlUuid}/${command}`;
-      const response = await this.connection.sendCommand<TextMessage>(
+      const response = await this.webSocketConnection.sendCommand<TextMessage>(
         fullCommand,
         encrypted,
         timeoutOverride,
@@ -439,17 +445,17 @@ class LoxoneClient extends EventEmitter {
   private wireUpEvents(): void {
     if (this.wired) return;
 
-    this.connection.on("disconnected", (reason: string) => {
+    this.webSocketConnection.on("disconnected", (reason: string) => {
       this.log.warn(`Disconnected: ${reason}`);
       if (this._state !== LoxoneClientState.error) this.setState(LoxoneClientState.disconnected);
     });
-    this.connection.on("error", (error: Error) => {
+    this.webSocketConnection.on("error", (error: Error) => {
       this.log.error(`Connection error: ${error.message}`, error);
       this.setState(LoxoneClientState.error);
     });
 
     if (this.autoReconnect.autoReconnectEnabled) {
-      this.connection.on("disconnected", () => {
+      this.webSocketConnection.on("disconnected", () => {
         void this.autoReconnect.startAutoReconnect().catch((error: unknown) => {
           this.log.error(
             `Failed to start auto reconnect: ${error instanceof Error ? error.message : String(error)}`,
@@ -457,7 +463,7 @@ class LoxoneClient extends EventEmitter {
           );
         });
       });
-      this.connection.on("connected", () => {
+      this.webSocketConnection.on("connected", () => {
         try {
           this.autoReconnect.stopAutoReconnect();
         } catch (error: unknown) {
@@ -470,16 +476,16 @@ class LoxoneClient extends EventEmitter {
     }
 
     // forward events from the underlying connection to this client
-    this.connection.on("connected", () => this.emit("connected"));
-    this.connection.on("disconnected", (reason) => this.emit("disconnected", reason));
-    this.connection.on("error", (error) => this.emit("error", error));
-    this.connection.on("text_message", (message) => this.emit("text_message", message));
-    this.connection.on("file_message", (message) => this.emit("file_message", message));
+    this.webSocketConnection.on("connected", () => this.emit("connected"));
+    this.webSocketConnection.on("disconnected", (reason) => this.emit("disconnected", reason));
+    this.webSocketConnection.on("error", (error) => this.emit("error", error));
+    this.webSocketConnection.on("text_message", (message) => this.emit("text_message", message));
+    this.webSocketConnection.on("file_message", (message) => this.emit("file_message", message));
 
-    this.connection.on("event_table_values", (eventTable: LoxoneValueEvent[]) => {
+    this.webSocketConnection.on("event_table_values", (eventTable: LoxoneValueEvent[]) => {
       this.filterAndLogAndEmitEvents(eventTable);
     });
-    this.connection.on("event_table_text", (eventTable: LoxoneTextEvent[]) => {
+    this.webSocketConnection.on("event_table_text", (eventTable: LoxoneTextEvent[]) => {
       this.filterAndLogAndEmitEvents(eventTable);
     });
 
@@ -564,16 +570,22 @@ class LoxoneClient extends EventEmitter {
   }
 
   private async checkVersion(): Promise<void> {
-    const response = await fetch("http://" + this.host + "/jdev/cfg/apiKey");
+    const response = await fetch(new URL("jdev/cfg/apiKey", this.baseUrl));
     if (response.status === 503) {
       throw new Error("Miniserver is rebooting");
     }
     if (!response.ok) {
       this.log.error(`Failed to check version: ${response.status}`, response);
-      throw new Error("Failed to check version");
+      throw new Error(`Failed to check version: ${response.status}`);
     }
     // oxlint-disable-next-line typescript/no-explicit-any
     const data: any = await response.json();
+
+    if (data.LL?.Code !== "200") {
+      this.log.error(`Invalid reponse code: ${data.LL?.Code}`, data.LL);
+      throw new Error(`Invalid reponse code: ${data.LL?.Code}`);
+    }
+
     const jsonString = data.LL.value.replace(/'/g, '"');
     const dataJson = JSON.parse(jsonString);
     const version = dataJson.version;

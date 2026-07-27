@@ -8,7 +8,7 @@ import type { LoxoneClientOptions } from "../LoxoneClientOptions.js";
 class Auth {
   private password: string;
   private username: string;
-  private host: string;
+  private baseUrl: URL | undefined;
   private connection: WebSocketConnection;
   private publicKey: { key: string; padding: number } | undefined;
   private sessionKey: string | undefined;
@@ -22,14 +22,12 @@ class Auth {
   constructor(
     log: AnsiLogger,
     connection: WebSocketConnection,
-    host: string,
     username: string,
     password: string,
     options: LoxoneClientOptions,
   ) {
     this.log = log;
     this.connection = connection;
-    this.host = host;
     this.username = username;
     this.password = password;
 
@@ -44,7 +42,9 @@ class Auth {
     this.commandEncryption = new CommandEncryption(this);
   }
 
-  async authenticate(existingToken?: string): Promise<void> {
+  async authenticate(baseUrl: URL, existingToken?: string): Promise<void> {
+    this.baseUrl = baseUrl;
+
     // 1. get public key
     await this.getPublicKey();
     if (!this.publicKey) throw new Error("Public key is missing");
@@ -81,7 +81,10 @@ class Auth {
   }
 
   private async getPublicKey(): Promise<void> {
-    const response = await fetch("http://" + this.host + "/jdev/sys/getcertificate");
+    if (!this.baseUrl) {
+      throw new Error("Base URL is not set, cannot get public key");
+    }
+    const response = await fetch(new URL("jdev/sys/getcertificate", this.baseUrl));
     this.parsePublicKey(await response.text());
   }
 
