@@ -1,3 +1,4 @@
+// oxlint-disable no-bitwise
 /**
  * Represents the packed WebSocket binary header (WsBinHdr) from the C struct:
  *
@@ -12,21 +13,21 @@
  * This class can parse the header from a Buffer and serialize it back.
  */
 class WsBinHdr {
-    static readonly SIZE = 8; // total bytes in the packed struct
+  static readonly SIZE = 8; // total bytes in the packed struct
 
-    cBinType: number; // 1 byte
-    cIdentifier: number; // 1 byte
-    cInfo: number; // 1 byte
-    cReserved: number; // 1 byte
-    nLen: number; // 4 bytes (uint32 little-endian)
+  cBinType: number; // 1 byte
+  cIdentifier: number; // 1 byte
+  cInfo: number; // 1 byte
+  cReserved: number; // 1 byte
+  nLen: number; // 4 bytes (uint32 little-endian)
 
-    constructor(cBinType = 0x03, cIdentifier = 0, cInfo = 0, cReserved = 0, nLen = 0) {
-        this.cBinType = cBinType;
-        this.cIdentifier = cIdentifier;
-        this.cInfo = cInfo;
-        this.cReserved = cReserved;
-        this.nLen = nLen >>> 0;
-    }
+  constructor(cBinType = 0x03, cIdentifier = 0, cInfo = 0, cReserved = 0, nLen = 0) {
+    this.cBinType = cBinType;
+    this.cIdentifier = cIdentifier;
+    this.cInfo = cInfo;
+    this.cReserved = cReserved;
+    this.nLen = nLen >>> 0;
+  }
 }
 
 export default WsBinHdr;

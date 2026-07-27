@@ -1,7 +1,8 @@
 # loxone-ts-api
+
 A Node module written in TypeScript for facilitating communication with Loxone Miniservers. Communication is done using http and WebSockets.
 
-Currently only implemented http/ws communication to enable support for Gen.1 and Gen.2 Miniservers. https/wss communication currently not supported, but planned.
+Tested on Gen.1 Miniservers, but https support also added, so should work with Gen.2 Miniservers too.
 
 ## Key featrues
 
@@ -10,6 +11,7 @@ Currently only implemented http/ws communication to enable support for Gen.1 and
   - Support for token-based auth, token refresh and token invalidation
   - Supports automatic reconnect
   - Automatically maintains connection upon disconnect or error
+  - Supports determining Miniserver address via Loxone RemoteConnect
 - Event emitting
   - emits events on key connection events
   - emits events for message received
@@ -52,52 +54,55 @@ Uses token authentication with the Miniserver. Automatically attempts token refr
 import { AnsiLogger, LogLevel, TimestampFormat } from "node-ansi-logger";
 import LoxoneClient from "./LoxoneClient.js";
 
-let log = new AnsiLogger({logName: "workbench", logTimestampFormat: TimestampFormat.TIME_MILLIS});
+let log = new AnsiLogger({ logName: "workbench", logTimestampFormat: TimestampFormat.TIME_MILLIS });
 
 // instantiate the client
 let client = new LoxoneClient("192.168.1.253:80", "user", "pass");
+
+// alternatively use MAC address to use Loxone Remote Connect
+let client = new LoxoneClient("AA:BB:CC:DD:EE:FF", "user", "pass");
 
 // sets log level to debug for more verbose logging
 client.setLogLevel(LogLevel.DEBUG);
 
 // subscribe to basic events
-client.on('disconnected', () => {
-    log.warn('Loxone client disconnected');
+client.on("disconnected", () => {
+  log.warn("Loxone client disconnected");
 });
-client.on('error', (error) => {
-    log.error(`Loxone client error: ${error.message}`, error);
+client.on("error", (error) => {
+  log.error(`Loxone client error: ${error.message}`, error);
 });
 
 // initiate connection
 await client.connect();
 
 // gets acquired token
-const token = client.auth.tokenHandler.token; 
+const token = client.auth.tokenHandler.token;
 
 // disconnects and skips invalidation of token
-await client.disconnect(true); 
+await client.disconnect(true);
 
 // uses supplied token for auth instead of acquiring a new one
-await client.connect(token); 
+await client.connect(token);
 
 // sets a switch to on
 await client.control("90f7abe3-8772-476d-b1dd-a5c1c4cf1ed9", "on");
 
 // subscribe to Loxone value updates
-client.on('event_value', (event) => {
-    log.info(`Received value event: ${event.uuid.stringValue}`);
-    log.info(`  Room: ${event.state?.parentControl?.room?.name}`);
-    log.info(`  Control: ${event.state?.parentControl?.name}`);
-    log.info(`  State: ${event.state?.name}`);
-    log.info(`  Event path: ${event.toPath()}`);
-    log.info(`  Full event: ${event.toString()}`);
+client.on("event_value", (event) => {
+  log.info(`Received value event: ${event.uuid.stringValue}`);
+  log.info(`  Room: ${event.state?.parentControl?.room?.name}`);
+  log.info(`  Control: ${event.state?.parentControl?.name}`);
+  log.info(`  State: ${event.state?.name}`);
+  log.info(`  Event path: ${event.toPath()}`);
+  log.info(`  Full event: ${event.toString()}`);
 });
 
 // initiates streaming of events
-await client.enablesUpdates(); 
+await client.enableUpdates();
 
 // disconnects and kills token
-await client.disconnect(); 
+await client.disconnect();
 ```
 
 This will yield a log output similar to:
@@ -122,7 +127,7 @@ Key entrypoint to the module.
 
 ```ts
     LoxoneClient(
-        host: string,
+        address: string,
         username: string,
         password: string,
         clientOptions: Partial<LoxoneClientOptions>
@@ -131,16 +136,17 @@ Key entrypoint to the module.
 
 #### Parameters
 
-|parameter|description|
-|--|--|
-|host|IP address or hostname of the Loxone Miniserver|
-|username|username to use|
-|password|password for the user|
-|clientOptions.autoReconnectEnabled|optional parameter to override the default behavior of automatically reconnecting on failure/disconnection|
-|clientOptions.keepAliveEnabled|optional parameter to override the default behavior of enabling a 15 second keepalive
-|clientOptions.messageLogEnabled|optional parameter to override the default behavior of enabling a logging of messages and responses
-|clientOptions.logAllEvents|optional parameter to log all value and text update events to the console
-|clientOptions.maintainLatestEvents|optional paraneter to override the default behavior of maintaining the latest event for each control|
+| parameter                          | description                                                                                                                 |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| address                            | IP address, hostname, URL or MAC address of the Loxone Miniserver                                                           |
+| username                           | username to use                                                                                                             |
+| password                           | password for the user                                                                                                       |
+| clientOptions.autoReconnectEnabled | optional parameter to override the default behavior of automatically reconnecting on failure/disconnection                  |
+| clientOptions.keepAliveEnabled     | optional parameter to override the default behavior of enabling a 15 second keepalive                                       |
+| clientOptions.messageLogEnabled    | optional parameter to override the default behavior of enabling a logging of messages and responses                         |
+| clientOptions.logAllEvents         | optional parameter to log all value and text update events to the console                                                   |
+| clientOptions.maintainLatestEvents | optional parameter to override the default behavior of maintaining the latest event for each control                        |
+| clientOptions.clientUuid           | optional parameter to override the default client UUID of '11fecda8-c89a-48fb-8209-45ed851e81c7' used during authentication |
 
 Instantiating a `LoxoneClient` instance does not trigger any network communication.
 
@@ -149,8 +155,9 @@ Instantiating a `LoxoneClient` instance does not trigger any network communicati
 Initiates the connection to the Loxone Miniserver, negotiates session keys and encryption parameters, as well as attempts token authentication.
 
 Goes through the following sequence
+
 1. Wire up events so LoxoneClient starts emitting connection and Loxone related events
-1. Checks the Loxone Miniserver generation and firmware version 
+1. Checks the Loxone Miniserver generation and firmware version
 1. Connects the WebSocket connection
 1. Performs key exchange and authentication, and schedules automatic token refresh
 1. Enables keepalive (unless disabled by `clientOptions.keepAliveEnabled`)
@@ -160,10 +167,10 @@ Goes through the following sequence
 ```ts
 async connect(existingToken: string = "")
 ```
-|parameter|description|
-|--|--|
-|existingToken|if supplied, uses the supplied token instead of acquiring a new one|
 
+| parameter     | description                                                         |
+| ------------- | ------------------------------------------------------------------- |
+| existingToken | if supplied, uses the supplied token instead of acquiring a new one |
 
 ### `LoxoneClient.disconnect()`
 
@@ -175,10 +182,9 @@ Disconnects the connection and cleans up internal states.
 async disconnect(preserveToken: boolean = false)
 ```
 
-|parameter|description|
-|--|--|
-|preserveToken|optional parameter to skip killing the obtained token so it remains valid after disconnection|
-
+| parameter     | description                                                                                   |
+| ------------- | --------------------------------------------------------------------------------------------- |
+| preserveToken | optional parameter to skip killing the obtained token so it remains valid after disconnection |
 
 ### `LoxoneClient.getStructureFile()`
 
@@ -200,7 +206,6 @@ Parses the Loxone structure file (`LoxAPP3.json`). After calling this method, ev
 async parseStructureFile()
 ```
 
-
 ### `LoxoneClient.enableUpdates()`
 
 Enables the streaming of binary event updates.
@@ -221,19 +226,18 @@ Sends a text command to the Miniserver and waits for the response till timeout (
 async sendTextCommand(command: string, timeoutOverride = this.COMMAND_TIMEOUT): Promise<TextMessage>
 ```
 
-|parameter|description|
-|--|--|
-|command|The Loxone command to execute|
-|timeoutOverride|optional parameter allowing override of the default 5s timeout. Unit is milliseconds|
+| parameter       | description                                                                          |
+| --------------- | ------------------------------------------------------------------------------------ |
+| command         | The Loxone command to execute                                                        |
+| timeoutOverride | optional parameter allowing override of the default 5s timeout. Unit is milliseconds |
 
 #### Returns
 
 `TextMessage` object with the response to the command, or an exception.
 
-
 ### `LoxoneClient.sendFileCommand()`
 
-Retrieves a file from the Miniserver and waits for the response till timeout (default: 5s, overridable). 
+Retrieves a file from the Miniserver and waits for the response till timeout (default: 5s, overridable).
 
 #### Parameters
 
@@ -241,15 +245,14 @@ Retrieves a file from the Miniserver and waits for the response till timeout (de
 async sendFileCommand(filename: string, timeoutOverride = this.COMMAND_TIMEOUT): Promise<FileMessage>
 ```
 
-|parameter|description|
-|--|--|
-|filename|Filename of the file to be retrieved|
-|timeoutOverride|optional parameter allowing override of the default 5s timeout. Unit is milliseconds|
+| parameter       | description                                                                          |
+| --------------- | ------------------------------------------------------------------------------------ |
+| filename        | Filename of the file to be retrieved                                                 |
+| timeoutOverride | optional parameter allowing override of the default 5s timeout. Unit is milliseconds |
 
 #### Returns
 
 `FileMessage` object with the file contents, or an exception.
-
 
 ### `LoxoneClient.control()`
 
@@ -263,16 +266,15 @@ See the Loxone [structure file](https://www.loxone.com/wp-content/uploads/datash
 async control(uuid: UUID | string, command: string, timeoutOverride = this.COMMAND_TIMEOUT): Promise<TextMessage>
 ```
 
-|parameter|description|
-|--|--|
-|uuid|UUID of the Loxone control to operate|
-|command|The command to send|
-|timeoutOverride|optional parameter allowing override of the default 5s timeout. Unit is milliseconds|
+| parameter       | description                                                                          |
+| --------------- | ------------------------------------------------------------------------------------ |
+| uuid            | UUID of the Loxone control to operate                                                |
+| command         | The command to send                                                                  |
+| timeoutOverride | optional parameter allowing override of the default 5s timeout. Unit is milliseconds |
 
 #### Returns
 
 `TextMessage` object with the result of the operation, or an exception.
-
 
 ### `LoxoneClient.setLogLevel()`
 
@@ -283,35 +285,38 @@ Sets the log level. By default it is set to INFO.
 ```ts
 setLogLevel(level: LogLevel)
 ```
-|parameter|description|
-|--|--|
-|level|Loglevel to set logging to. Uses the `node-ansi-logger` module|
+
+| parameter | description                                                    |
+| --------- | -------------------------------------------------------------- |
+| level     | Loglevel to set logging to. Uses the `node-ansi-logger` module |
 
 ### `LoxoneClient.addUuidToWatchList()`
 
-Adds UUIDs to the watch list. Value and text update events will only be emitted for these UUIDs. If the watchlist is empty, all events will be emitted. 
+Adds UUIDs to the watch list. Value and text update events will only be emitted for these UUIDs. If the watchlist is empty, all events will be emitted.
 
 #### Parameters
 
 ```ts
 addUuidToWatchList(uuid: string | string[])
 ```
-|parameter|description|
-|--|--|
-|uuid|UUID string or array of strings to add to the watchlist|
+
+| parameter | description                                             |
+| --------- | ------------------------------------------------------- |
+| uuid      | UUID string or array of strings to add to the watchlist |
 
 ### `LoxoneClient.removeUuidFromWatchList()`
 
-Removes UUIDs from the watch list. 
+Removes UUIDs from the watch list.
 
 #### Parameters
 
 ```ts
 removeUuidFromWatchList(uuid: string | string[])
 ```
-|parameter|description|
-|--|--|
-|uuid|UUID string or array of strings to remove from the watchlist|
+
+| parameter | description                                                  |
+| --------- | ------------------------------------------------------------ |
+| uuid      | UUID string or array of strings to remove from the watchlist |
 
 ### `LoxoneClient.checkToken()`
 
@@ -323,9 +328,9 @@ Checks whether the token is still valid.
 async checkToken(token: string = "")
 ```
 
-|parameter|description|
-|--|--|
-|token|If supplied, checks the supplied token instead of the remembered (active) one|
+| parameter | description                                                                   |
+| --------- | ----------------------------------------------------------------------------- |
+| token     | If supplied, checks the supplied token instead of the remembered (active) one |
 
 ### `LoxoneClient.refreshToken()`
 
@@ -344,16 +349,19 @@ The `LoxoneClient` emits the following events:
 ```ts
   connected: () => void;
 ```
+
 Fires when the connection is successfully established.
 
 ```ts
   authenticated: () => void;
 ```
+
 Fires when authentication was successful.
 
 ```ts
   ready: () => void;
 ```
+
 Fires when `LoxoneClient` is ready to receive commands.
 
 ```ts
@@ -371,20 +379,25 @@ Fires when a WebSocket error is encountered.
 ```ts
   header: (header: ParsedHeader) => void;
 ```
+
 Fires when a header message is received.
 
 ```ts
   keepalive: (header: ParsedHeader) => void;
 ```
+
 Fires when a keepalive message is received.
 
 ```ts
   text_message: (text: TextMessage) => void;
 ```
+
 Fires when a text message is received on the WebSocket channel.
+
 ```ts
   file_message: (file: FileMessage) => void;
 ```
+
 Fires when a file message is received on the WebSocket channel.
 
 ```ts
@@ -393,11 +406,15 @@ Fires when a file message is received on the WebSocket channel.
   event_table_day_timer: (eventTable: LoxoneDayTimerEvent[]) => void;
   event_table_weather: (eventTable: LoxoneWeatherEvent[]) => void;
 ```
+
 Fires when an event update message is received on the WebSocket channel. EventTables can contain multiple update events of the same kind.
+
 ```ts
   stateChanged: (newState: string) => void;
 ```
+
 Fires when the `LoxoneClient` changes its state. Possible states are:
+
 - disconnected
 - disconnecting
 - connecting
@@ -412,6 +429,7 @@ Fires when the `LoxoneClient` changes its state. Possible states are:
   event_value: (event: LoxoneValueEvent) => void;
   event_text: (event: LoxoneTextEvent) => void;
 ```
+
 Fires when Loxone value or text update events are received. Events can be filtered using the watchlist functionality (`addUuidToWatchList()` and `removeUuidFromWatchList()`). If the watchlist contains any items, events `event_value` and `event_text` events are only emitted for the UUIDs that are on the watchlist. If the watchlist is empty, events are emitted for all value and text updates.
 
 ## Disclaimer

@@ -1,24 +1,9 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "esnext",
-    "module": "nodenext",
-    "moduleResolution": "NodeNext",
-    "lib": ["ESNext"],
-    "rootDir": "./src",
-    "outDir": "./dist",
-    "strict": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true,
-    "resolveJsonModule": true,
-    "declaration": true,
-    "sourceMap": true,
-    "isolatedModules": false,
-    "noImplicitAny": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": false
+    "types": ["node"],
+    "rootDir": ".",
+    "noEmit": true
   },
-  "include": ["src"],
-  "exclude": ["node_modules", "dist", "build", "scripts"]
+  "include": ["src/**/*.ts"]
 }
