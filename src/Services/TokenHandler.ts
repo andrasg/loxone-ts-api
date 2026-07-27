@@ -3,6 +3,7 @@ import { hash, hmacHash } from '../Utils/Hasher.js';
 import WebSocketConnection from '../Services/WebSocketConnection.js';
 import TextMessage from '../WebSocketMessages/TextMessage.js';
 import { AnsiLogger } from 'node-ansi-logger';
+import { LoxoneClientOptions } from '../LoxoneClientOptions.js';
 
 class TokenHandler {
     token: string | undefined;
@@ -21,13 +22,15 @@ class TokenHandler {
     private refreshMaxRetries = 5;
     private refreshRetries = 0;
     log: AnsiLogger;
+    private options: LoxoneClientOptions;
 
-    constructor(auth: Auth, log: AnsiLogger, connection: WebSocketConnection, username: string, password: string) {
+    constructor(auth: Auth, log: AnsiLogger, connection: WebSocketConnection, username: string, password: string, options: LoxoneClientOptions) {
         this.log = log;
         this.auth = auth;
         this.connection = connection;
         this.username = username;
         this.password = password;
+        this.options = options;
     }
 
     async refreshToken() {
@@ -75,7 +78,7 @@ class TokenHandler {
 
         // 4. Request a JSON Web Token “jdev/sys/getjwt/{hash}/{user}/{permission}/{uuid}/{info}”
         const permission = 2;
-        const uuid = '11fecda8-c89a-48fb-8209-45ed851e81c7';
+        const uuid = this.options.clientUuid;
         const info = `loxone-ts-api-${this.username}`;
         const jwtUrl = `jdev/sys/getjwt/${userHash}/${this.username}/${permission}/${uuid}/${info}`;
         const jwtResponse = await this.connection.sendEncryptedTextCommand(jwtUrl);

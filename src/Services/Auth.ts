@@ -3,6 +3,7 @@ import WebSocketConnection from '../Services/WebSocketConnection.js';
 import { constants, publicEncrypt } from 'node:crypto';
 import CommandEncryption from './CommandEncryption.js';
 import { AnsiLogger } from 'node-ansi-logger';
+import { LoxoneClientOptions } from '../LoxoneClientOptions.js';
 
 class Auth {
     private password: string;
@@ -18,14 +19,14 @@ class Auth {
     commandEncryption: CommandEncryption;
     log: AnsiLogger;
 
-    constructor(log: AnsiLogger, connection: WebSocketConnection, host: string, username: string, password: string) {
+    constructor(log: AnsiLogger, connection: WebSocketConnection, host: string, username: string, password: string, options: LoxoneClientOptions) {
         this.log = log;
         this.connection = connection;
         this.host = host;
         this.username = username;
         this.password = password;
 
-        this.tokenHandler = new TokenHandler(this, log, this.connection, this.username, this.password);
+        this.tokenHandler = new TokenHandler(this, log, this.connection, this.username, this.password, options);
         this.commandEncryption = new CommandEncryption(this);
     }
 

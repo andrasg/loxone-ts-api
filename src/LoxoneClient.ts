@@ -63,7 +63,7 @@ class LoxoneClient extends EventEmitter {
      * @param host Loxone hostname or IP
      * @param username Username to be used
      * @param password Password for the user
-     * @param keepAliveEnabed (optional) whether to enable keepalive
+     * @param clientOptions (optional) client options for configuring the Loxone client
      */
     constructor(host: string, username: string, password: string, clientOptions: Partial<LoxoneClientOptions> | LoxoneClientOptions = new LoxoneClientOptions()) {
         super();
@@ -71,7 +71,7 @@ class LoxoneClient extends EventEmitter {
 
         this.log = new AnsiLogger({ logName: LoxoneClient.name, logTimestampFormat: TimestampFormat.TIME_MILLIS, logLevel: options.logLevel });
         this.connection = new WebSocketConnection(this, this.log, host, this.COMMAND_TIMEOUT, options.messageLogEnabled);
-        this.auth = new Auth(this.log, this.connection, host, username, password);
+        this.auth = new Auth(this.log, this.connection, host, username, password, options);
         this.host = host;
         this.autoReconnect = new AutoReconnect(this, this.log, options.autoReconnectEnabled);
         this.options = options;

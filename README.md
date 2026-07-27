@@ -140,7 +140,8 @@ Key entrypoint to the module.
 |clientOptions.keepAliveEnabled|optional parameter to override the default behavior of enabling a 15 second keepalive
 |clientOptions.messageLogEnabled|optional parameter to override the default behavior of enabling a logging of messages and responses
 |clientOptions.logAllEvents|optional parameter to log all value and text update events to the console
-|clientOptions.maintainLatestEvents|optional paraneter to override the default behavior of maintaining the latest event for each control|
+|clientOptions.maintainLatestEvents|optional parameter to override the default behavior of maintaining the latest event for each control|
+|clientOptions.clientUuid|optional parameter to override the default client UUID of '11fecda8-c89a-48fb-8209-45ed851e81c7' used during authentication|
 
 Instantiating a `LoxoneClient` instance does not trigger any network communication.
 
