@@ -20,6 +20,7 @@
     "clean": "rm -rf dist",
     "build": "tsc --build tsconfig.build.json",
     "buildProduction": "tsc --project tsconfig.build.production.json",
+    "test": "npm run build && node --test test/*.test.mjs",
     "typecheck": "tsc --build tsconfig.json --noEmit",
     "start": "node dist/workbench.js",
     "format": "oxfmt",

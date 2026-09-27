@@ -54,3 +54,6 @@ jobs:
   
       - name: Build the project
         run: npm run build
+
+      - name: Run tests
+        run: node --test test/*.test.mjs
