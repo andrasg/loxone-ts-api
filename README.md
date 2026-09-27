@@ -32,6 +32,15 @@ Tested on Gen.1 Miniservers, but https support also added, so should work with G
 After calling `LoxoneClient.parseStructureFile()`, the client will read the `LoxAPP3.json` and parse all rooms, their available controls and states associated. These can be read on the client object through the `rooms`, `controls` and `states` collections.
 It will also start enriching the received events with the associates `State` object that contains details about the state, its associated control and the room the control is in.
 
+### Finding controls and states
+
+```ts
+const { controls, states } = await new LoxoneClient(ip, user, pass).find("controlname");
+```
+
+Prints a table of matching controls and states with their UUIDs, category, room, control
+path and state name, and returns the matching objects. See `LoxoneClient.find()` below.
+
 ### Watchlist
 
 By default the client will emit all events received via websocket. You can add status UUIDs to the watchlist by calling `LoxoneClient.addUuidToWatchList(uuid)`. Upon adding items to the watchlist, the client will only log and emit events received for statuses associated with the watched UUIDs.
@@ -309,6 +318,38 @@ try {
   }
   throw error; // Propagate the failure to the caller.
 }
+```
+
+### `LoxoneClient.find()`
+
+```ts
+async find(searchString: string): Promise<LoxoneFindResult>
+// LoxoneFindResult is a named type export: { controls: Control[]; states: State[] }
+```
+
+Searches category names, room names, control names (including parent/subcontrol paths)
+and state names using case-insensitive substring matching. Categories are resolved
+from the structure file; subcontrols inherit their parent's category when absent.
+A control matches its category, room or control path. A state matches those fields
+of its control or its own state name. A state-name-only match does not add its control
+to the controls array.
+
+An empty string or `"*"` returns everything. Other strings are literal substrings,
+not wildcard patterns or regular expressions. No matches returns empty arrays.
+The returned arrays contain the original objects from the client's collections.
+
+Every call prints a table, regardless of the configured log level.
+
+The method reuses an already parsed structure or parses a previously loaded one.
+Otherwise it fetches and parses the structure, connecting and authenticating first
+if necessary. A connection opened by `find()` is disconnected afterward, even on
+failure; an existing connection is left open. One-shot connections do not automatically
+retry. Calls made while the client is connecting/reconnecting reject if they need
+a connection. Connection, download and parsing failures are logged and reject the promise.
+
+```ts
+await new LoxoneClient(ip, user, pass).find("*"); // Print all controls and states.
+const { states } = await client.find("kitchen"); // Reuse an existing client.
 ```
 
 ### `LoxoneClient.setLogLevel()`

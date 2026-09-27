@@ -24,6 +24,11 @@ import { describeError } from "./Utils/ErrorFormatter.js";
 
 type LogLevelName = "none" | "fatal" | "error" | "warn" | "notice" | "info" | "debug";
 
+export interface LoxoneFindResult {
+  controls: Control[];
+  states: State[];
+}
+
 export class LoxoneControlError extends Error {
   constructor(
     message: string,
@@ -222,12 +227,12 @@ class LoxoneClient extends EventEmitter {
       if (!preserveToken) {
         await this.auth.tokenHandler.killToken();
       }
-
+    } catch (error: unknown) {
+      this.log.error(`Error while disconnecting: ${describeError(error)}`, error);
+    } finally {
       // disconnect websocket
       this.webSocketConnection?.cleanupAfterDisconnectOrError("Disconnect initiated");
       this.setState(LoxoneClientState.disconnected);
-    } catch (error: unknown) {
-      this.log.error(`Error while disconnecting: ${describeError(error)}`, error);
     }
   }
 
@@ -361,6 +366,91 @@ class LoxoneClient extends EventEmitter {
   }
 
   /**
+   * Prints and returns controls and states matching a case-insensitive substring.
+   * Loads the structure as needed and closes only connections opened by this call.
+   * @param {string} searchString Category, room, control or state name; "" and "*" match everything.
+   * @returns {Promise<LoxoneFindResult>} Matching objects from the controls and states collections.
+   * @throws {Error} If connecting, loading or parsing the structure fails, or the client is busy connecting.
+   */
+  async find(searchString: string): Promise<LoxoneFindResult> {
+    const query = searchString.toLowerCase();
+    const matchAll = query === "" || query === "*";
+    let openedConnection = false;
+    const autoReconnectEnabled = this.autoReconnect.autoReconnectEnabled;
+
+    try {
+      if (!this.isStructureFileParsed) {
+        if (!this.structureFile && this.state !== LoxoneClientState.ready) {
+          if (
+            this.autoReconnect.autoReconnectingInProgress ||
+            (this.state !== LoxoneClientState.disconnected &&
+              this.state !== LoxoneClientState.error)
+          ) {
+            throw new Error(`Cannot find while client is ${this.state}`);
+          }
+          // A one-shot lookup must not retry indefinitely on connection failure.
+          this.autoReconnect.disableAutoReconnect();
+          openedConnection = true;
+          await this.connect();
+          this.ensureReadyState("Not connected and authenticated, cannot find");
+        }
+        await this.parseStructureFile();
+      }
+
+      const fieldsFor = (control: Control): { category: string; room: string; control: string } => {
+        const categoryUuid: unknown =
+          control.structureSection.cat ?? control.parent?.structureSection.cat;
+        const categoryName: unknown =
+          typeof categoryUuid === "string"
+            ? this.structureFile?.cats?.[categoryUuid]?.name
+            : undefined;
+        return {
+          category: typeof categoryName === "string" ? categoryName : "",
+          room: control.room.name,
+          control: control.parent ? `${control.parent.name}/${control.name}` : control.name,
+        };
+      };
+      const matches = (fields: string[]): boolean =>
+        matchAll || fields.some((field) => field.toLowerCase().includes(query));
+      const controls = [...this.controls.values()].filter((control) =>
+        matches(Object.values(fieldsFor(control))),
+      );
+      const states = [...this.states.values()].filter((state) =>
+        matches([...Object.values(fieldsFor(state.parentControl)), state.name]),
+      );
+
+      // Diagnostic output is intentional and independent of the client's log level.
+      // oxlint-disable-next-line no-console
+      console.table([
+        ...controls.map((control) => ({
+          kind: "control",
+          uuid: control.uuid,
+          ...fieldsFor(control),
+          state: "",
+        })),
+        ...states.map((state) => ({
+          kind: "state",
+          uuid: state.uuid.stringValue,
+          ...fieldsFor(state.parentControl),
+          state: state.name,
+        })),
+      ]);
+      return { controls, states };
+    } catch (error: unknown) {
+      this.log.error(`Could not find: ${describeError(error)}`, error);
+      throw new Error(`Could not find: ${describeError(error)}`, { cause: error });
+    } finally {
+      if (openedConnection) {
+        try {
+          await this.disconnect();
+        } finally {
+          this.autoReconnect.autoReconnectEnabled = autoReconnectEnabled;
+        }
+      }
+    }
+  }
+
+  /**
    * Parses the structure file and extracts relevant information. After calling this event, emitted event updates will
    * contain enriched information about the room, control, and state names.
    */
@@ -463,20 +553,18 @@ class LoxoneClient extends EventEmitter {
       this.setState(LoxoneClientState.error);
     });
 
-    if (this.autoReconnect.autoReconnectEnabled) {
-      this.webSocketConnection.on("disconnected", () => {
-        void this.autoReconnect.startAutoReconnect().catch((error: unknown) => {
-          this.log.error(`Failed to start auto reconnect: ${describeError(error)}`, error);
-        });
+    this.webSocketConnection.on("disconnected", () => {
+      void this.autoReconnect.startAutoReconnect().catch((error: unknown) => {
+        this.log.error(`Failed to start auto reconnect: ${describeError(error)}`, error);
       });
-      this.webSocketConnection.on("connected", () => {
-        try {
-          this.autoReconnect.stopAutoReconnect();
-        } catch (error: unknown) {
-          this.log.error(`Failed to stop auto reconnect: ${describeError(error)}`, error);
-        }
-      });
-    }
+    });
+    this.webSocketConnection.on("connected", () => {
+      try {
+        this.autoReconnect.stopAutoReconnect();
+      } catch (error: unknown) {
+        this.log.error(`Failed to stop auto reconnect: ${describeError(error)}`, error);
+      }
+    });
 
     // forward events from the underlying connection to this client
     this.webSocketConnection.on("connected", () => this.emit("connected"));
