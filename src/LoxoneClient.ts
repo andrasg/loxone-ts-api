@@ -24,6 +24,16 @@ import { describeError } from "./Utils/ErrorFormatter.js";
 
 type LogLevelName = "none" | "fatal" | "error" | "warn" | "notice" | "info" | "debug";
 
+export class LoxoneControlError extends Error {
+  constructor(
+    message: string,
+    public readonly response: TextMessage,
+  ) {
+    super(message);
+    this.name = "LoxoneControlError";
+  }
+}
+
 class LoxoneClient extends EventEmitter {
   private readonly webSocketConnection: WebSocketConnection;
   readonly auth: Auth;
@@ -297,6 +307,8 @@ class LoxoneClient extends EventEmitter {
    * @param {string} command The command to execute
    * @param {number} timeoutOverride (optional) timeoutoverride for this command
    * @returns {Promise<TextMessage>} The response from the Loxone Miniserver
+   * @throws {LoxoneControlError} If the response code is not 200 or its value is the string "0".
+   * @throws {Error} If the client is not ready or the transport fails; preserves the original cause.
    */
   async control(
     uuid: string | UUID,
@@ -319,21 +331,26 @@ class LoxoneClient extends EventEmitter {
         encrypted,
         timeoutOverride,
       );
-      if (response.code === 404) this.log.error(`Loxone control '${controlUuid}' not found`);
-      else if (response.code !== 200)
-        this.log.error(
-          `${controlUuid}/${command} - unknown error, response was not 200 OK, but ${response.code}`,
+      if (response.code !== 200) {
+        const reason = response.code === 404 ? "control not found" : "response was not 200 OK";
+        throw new LoxoneControlError(
+          `${controlUuid}/${command} - ${reason} (response.code = ${response.code})`,
+          response,
         );
-      if (response.value === "0")
-        this.log.error(
-          `Loxone command '${command}' invalid, response indicates unsuccessful execution (response.value = 0)`,
+      }
+      if (response.value === "0") {
+        throw new LoxoneControlError(
+          `${controlUuid}/${command} - response indicates unsuccessful execution (response.code = 200, response.value = "0")`,
+          response,
         );
+      }
       return response;
     } catch (error: unknown) {
       this.log.error(
         `${controlUuid}/${command} - Could not execute control command: ${describeError(error)}`,
         error,
       );
+      if (error instanceof LoxoneControlError) throw error;
       throw new Error(
         `${controlUuid}/${command} - Could not execute control command: ${describeError(error)}`,
         {

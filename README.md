@@ -39,6 +39,8 @@ By default the client will emit all events received via websocket. You can add s
 ### Error handling
 
 The client tries to maintain the connection with the Miniserver even when network interruptions occur. Errors in command calls should not make the client crash.
+Await command calls inside `try`/`catch` or handle their promise rejections. In particular,
+`control()` rejects failed Miniserver responses as described below.
 
 ## Requirements
 
@@ -256,7 +258,7 @@ async sendFileCommand(filename: string, timeoutOverride = this.COMMAND_TIMEOUT):
 
 ### `LoxoneClient.control()`
 
-Executes a command on a Loxone control identified by its UUID and waits for the response till timeout (default: 5s, overridable)
+Executes a command on a Loxone control identified by its UUID and waits for the response till timeout (default: 15s, overridable).
 
 See the Loxone [structure file](https://www.loxone.com/wp-content/uploads/datasheets/StructureFile.pdf) for documentation on possible commands.
 
@@ -274,7 +276,40 @@ async control(uuid: UUID | string, command: string, timeoutOverride = this.COMMA
 
 #### Returns
 
-`TextMessage` object with the result of the operation, or an exception.
+Resolves with the original `TextMessage` when `response.code === 200` and
+`response.value !== "0"`. This acknowledges the command response, not the resulting
+device state; state feedback remains authoritative.
+
+Rejects with the named export `LoxoneControlError` when:
+
+- The API response code is not 200 (including 404 or a missing code).
+- The API response code is 200 but the value is the string `"0"`, indicating unsuccessful
+  command execution. Only the string `"0"` is treated as this failure marker.
+
+The error message includes the control UUID, command, and response code.
+`error.response` retains the original `TextMessage`, including its `code`, `value`,
+`control`, and parsed response data. A 404 error also identifies the control as not found.
+Failures are logged; commands are not retried or compensated.
+
+Transport failures and calls made before the client is ready continue to reject with
+an `Error` whose `cause` is the original failure.
+
+**Compatibility change:** Non-200 responses and responses with `value: "0"` previously
+only logged errors and resolved. Callers must now handle their rejected promises.
+The successful return type remains `Promise<TextMessage>`.
+
+```ts
+import LoxoneClient, { LoxoneControlError } from "loxone-ts-api";
+
+try {
+  await client.control("90f7abe3-8772-476d-b1dd-a5c1c4cf1ed9", "on");
+} catch (error) {
+  if (error instanceof LoxoneControlError) {
+    console.error(error.message, error.response.code, error.response.value);
+  }
+  throw error; // Propagate the failure to the caller.
+}
+```
 
 ### `LoxoneClient.setLogLevel()`
 
